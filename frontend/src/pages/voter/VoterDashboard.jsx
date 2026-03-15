@@ -2,7 +2,7 @@ import { useState, useEffect, useContext, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import apiClient from '../../api/client';
 import AuthContext from '../../context/AuthContext';
-import { Vote, CheckCircle, AlertCircle, ShieldCheck, Camera } from 'lucide-react';
+import { Vote, CheckCircle, AlertCircle, ShieldCheck, Camera, ScanFace } from 'lucide-react';
 
 const VoterDashboard = () => {
   const { isAdmin } = useContext(AuthContext);
@@ -21,6 +21,7 @@ const VoterDashboard = () => {
   const [verifyingFace, setVerifyingFace] = useState(false);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const autoVerifyRef = useRef(false);
 
   // 1. Fetch Active Elections on Load
   useEffect(() => {
@@ -81,34 +82,51 @@ const VoterDashboard = () => {
     return () => stopCamera();
   }, []);
 
-  // 4. Verify Face and Submit Vote
-  const handleVerifyAndVote = async () => {
-    if (!videoRef.current) return;
-    setVerifyingFace(true);
-    setError('');
+  // 4. Auto Face Verification Loop
+  useEffect(() => {
+    let timeoutId;
 
-    // Draw current video frame to canvas to get base64 image
-    const context = canvasRef.current.getContext('2d');
-    context.drawImage(videoRef.current, 0, 0, 320, 240);
-    const faceImageBase64 = canvasRef.current.toDataURL('image/jpeg');
-
-    try {
-      // 1. Send image to your backend to verify against the user's profile
-      await apiClient.post('/verify-face/', { image: faceImageBase64 });
+    const performAutoVerification = async () => {
+      if (!videoRef.current || !cameraActive || autoVerifyRef.current) return;
       
-      // 2. If verified, stop the camera and cast the actual vote
-      stopCamera();
-      await handleCastVote();
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Face verification failed. Make sure your face is clearly visible.');
-      setVerifyingFace(false);
+      if (videoRef.current.readyState !== 4) {
+        timeoutId = setTimeout(performAutoVerification, 500);
+        return;
+      }
+
+      autoVerifyRef.current = true;
+      setVerifyingFace(true);
+
+      const context = canvasRef.current.getContext('2d');
+      context.drawImage(videoRef.current, 0, 0, 640, 480);
+      const faceImageBase64 = canvasRef.current.toDataURL('image/jpeg');
+
+      try {
+        await apiClient.post('/verify-face/', { image: faceImageBase64 });
+        stopCamera();
+        await handleCastVote();
+      } catch (err) {
+        // Streams live feedback from the Python backend (e.g., "Multiple faces", "Score 0.68")
+        setError(err.response?.data?.detail || 'Scanning... Please look directly at the camera.');
+        autoVerifyRef.current = false;
+        if (cameraActive) {
+          timeoutId = setTimeout(performAutoVerification, 1500); // Try again in 1.5 seconds
+        }
+      }
+    };
+
+    if (cameraActive) {
+      autoVerifyRef.current = false;
+      timeoutId = setTimeout(performAutoVerification, 1000);
     }
-  };
+
+    return () => clearTimeout(timeoutId);
+  }, [cameraActive, selectedCandidateIndex, selectedElection]); // Dependencies ensure fresh state
 
   const handleCastVote = async () => {
     if (selectedCandidateIndex === null) return;
     setLoading(true);
-    setError('');
+    setError('Face verified! Encrypting and casting vote...');
     
     try {
       const payload = {
@@ -191,6 +209,7 @@ const VoterDashboard = () => {
                     className="w-5 h-5 text-blue-600"
                     checked={selectedCandidateIndex === candidate.candidate_index}
                     onChange={() => setSelectedCandidateIndex(candidate.candidate_index)}
+                    disabled={cameraActive || loading}
                   />
                   <span className="ml-3 text-lg">{candidate.name}</span>
                 </label>
@@ -207,17 +226,20 @@ const VoterDashboard = () => {
               </button>
             ) : (
               <div className="flex flex-col items-center bg-gray-900 p-6 rounded-lg border border-gray-700">
-                <p className="mb-4 text-sm text-gray-300">Please look directly at the camera to verify your identity.</p>
-                <video ref={videoRef} autoPlay playsInline muted className="w-full max-w-sm rounded-lg border border-gray-600 mb-4 bg-black transform scale-x-[-1]" />
-                <canvas ref={canvasRef} width="320" height="240" className="hidden" />
-                
-                <button 
-                  onClick={handleVerifyAndVote}
-                  disabled={verifyingFace || loading}
-                  className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-4 rounded-lg transition text-lg shadow-lg flex items-center justify-center gap-2"
-                >
-                  {verifyingFace || loading ? 'Verifying Identity & Voting...' : <><ShieldCheck size={20} /> Capture & Cast Vote</>}
-                </button>
+                <div className="mb-4 text-center">
+                  <ScanFace className="w-8 h-8 text-blue-400 mx-auto mb-2 animate-pulse" />
+                  <p className="text-sm text-gray-300 font-semibold">Auto-detecting face...</p>
+                  <p className="text-xs text-gray-500">Position your face inside the dashed oval</p>
+                </div>
+                <div className="relative w-full max-w-sm mb-4">
+                  <video ref={videoRef} autoPlay playsInline muted className="w-full rounded-lg border border-gray-600 bg-black transform scale-x-[-1]" />
+                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-1/2 h-3/4 border-4 border-dashed border-blue-500/70 rounded-[50%] pointer-events-none z-10 animate-pulse"></div>
+                </div>
+                <canvas ref={canvasRef} width="640" height="480" className="hidden" />
+                <div className="w-full bg-gray-800 border border-gray-600 text-gray-400 font-bold py-3 rounded-lg flex items-center justify-center gap-2">
+                  <div className="w-4 h-4 rounded-full border-2 border-t-blue-500 animate-spin"></div>
+                  Processing stream...
+                </div>
               </div>
             )}
             <p className="text-center text-xs text-gray-500 mt-4">Your identity is verified locally/securely before encrypting and anchoring your vote.</p>

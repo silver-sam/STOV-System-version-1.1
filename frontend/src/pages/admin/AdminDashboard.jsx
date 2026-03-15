@@ -132,6 +132,17 @@ const AdminDashboard = () => {
     }
   };
 
+  // 9. Deploy Ledger
+  const handleDeployLedger = async () => {
+    setMessage(''); setError('');
+    try {
+      const res = await apiClient.get('/deploy-ledger/');
+      setMessage(`Ledger Deployed! Contract Address: ${res.data.contract_address}`);
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to deploy ledger.');
+    }
+  };
+
   // Fetch elections when the tally tab is activated
   useEffect(() => { if (activeTab === 'tally') fetchAllElections(); }, [activeTab]);
 
@@ -214,6 +225,15 @@ const AdminDashboard = () => {
         {/* TAB 2: CREATE ELECTION */}
         {activeTab === 'create' && (
           <div className="space-y-6">
+            {/* Step 0: Deploy Ledger */}
+            <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
+              <h2 className="text-xl font-semibold mb-4">0. Initialize Blockchain Ledger</h2>
+              <p className="text-gray-400 mb-4 text-sm">Deploy the smart contract to the local Ganache network. This must be done once before any votes can be cast.</p>
+              <button type="button" onClick={handleDeployLedger} className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2.5 rounded-lg font-medium transition">
+                Deploy Smart Contract
+              </button>
+            </div>
+
             {/* Step 1: Define Election */}
             <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
               <h2 className="text-xl font-semibold mb-4">1. Create New Election</h2>

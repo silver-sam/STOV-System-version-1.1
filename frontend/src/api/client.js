@@ -1,8 +1,8 @@
 import axios from 'axios';
 
-// 1. Create a custom Axios instance pointing to your Python Backend
+// 1. Create a custom Axios instance pointing to the Vite Proxy
 const apiClient = axios.create({
-  baseURL: 'http://localhost:8000', // Matches your FastAPI port
+  baseURL: '/api', // Vite proxies this to your backend, bypassing Mixed Content errors!
   headers: {
     'Content-Type': 'application/json',
   },
