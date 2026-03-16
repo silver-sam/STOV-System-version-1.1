@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import apiClient from '../../api/client';
 import { QRCodeSVG } from 'qrcode.react';
-import { UserPlus, Lock, User, Copy, Check, Monitor, Camera } from 'lucide-react';
+import { UserPlus, Copy, Check, Monitor, Camera } from 'lucide-react';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -89,58 +89,49 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-900 text-white">
-      <div className="w-full max-w-md p-8 space-y-6 bg-gray-800 rounded-xl shadow-2xl border border-gray-700">
-        <h2 className="text-3xl font-bold text-center text-blue-500">Voter Registration</h2>
+    <div className="fixed inset-0 flex flex-col items-center justify-center bg-gray-900 text-white p-4">
+      <div className="w-full max-w-md p-10 flex flex-col items-center bg-gray-800 rounded-3xl shadow-2xl border border-gray-700">
+        <h2 className="text-4xl font-extrabold text-center text-blue-500 tracking-wide mb-8">Voter Registration</h2>
 
         {error && (
-          <div className="p-3 bg-red-900/50 border border-red-500 text-red-200 rounded text-sm text-center">
+          <div className="w-full p-3 mb-6 bg-red-900/50 border border-red-500 text-red-200 rounded-lg text-sm text-center">
             {error}
           </div>
         )}
 
         {step === 1 ? (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Voter ID</label>
-              <div className="relative">
-                <User className="absolute left-3 top-3 h-5 w-5 text-gray-500" />
-                <input
-                  type="text"
-                  required
-                  className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2.5 pl-10 px-4 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="VOTER-123"
-                  value={formData.voter_id}
-                  onChange={(e) => setFormData({ ...formData, voter_id: e.target.value })}
-                />
-              </div>
+          <form onSubmit={handleSubmit} className="w-full flex flex-col items-center space-y-6">
+            <div className="w-full text-center">
+              <label className="block text-sm font-medium text-gray-400 mb-2">Voter ID</label>
+              <input
+                type="text"
+                required
+                className="w-full bg-gray-700 border border-gray-600 rounded-xl py-3 px-4 text-white text-center focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                placeholder="VOTER-123"
+                value={formData.voter_id}
+                onChange={(e) => setFormData({ ...formData, voter_id: e.target.value })}
+              />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Password</label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-3 h-5 w-5 text-gray-500" />
-                <input
-                  type="password"
-                  required
-                  className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2.5 pl-10 px-4 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="••••••••"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                />
-              </div>
+            <div className="w-full text-center">
+              <label className="block text-sm font-medium text-gray-400 mb-2">Password</label>
+              <input
+                type="password"
+                required
+                className="w-full bg-gray-700 border border-gray-600 rounded-xl py-3 px-4 text-white text-center tracking-widest focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                placeholder="••••••••"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-400 mb-1">Admin Master Key (Optional for voters)</label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-3 h-5 w-5 text-gray-500" />
-                <input
-                  type="password"
-                  className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2.5 pl-10 px-4 text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Only for admin creation"
-                  value={formData.admin_key}
-                  onChange={(e) => setFormData({ ...formData, admin_key: e.target.value })}
-                />
-              </div>
+            <div className="w-full text-center">
+              <label className="block text-sm font-medium text-gray-400 mb-2">Admin Master Key <span className="text-gray-500 text-xs">(Optional)</span></label>
+              <input
+                type="password"
+                className="w-full bg-gray-700 border border-gray-600 rounded-xl py-3 px-4 text-white text-center focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                placeholder="Only for admin creation"
+                value={formData.admin_key}
+                onChange={(e) => setFormData({ ...formData, admin_key: e.target.value })}
+              />
             </div>
 
             {/* Camera Section */}
@@ -148,15 +139,15 @@ const Register = () => {
               <button 
                 type="button"
                 onClick={startCamera}
-                className="w-full bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 font-bold py-3 rounded-lg transition flex items-center justify-center gap-2"
+                className="w-full bg-gray-700 hover:bg-gray-600 border border-gray-500 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2"
               >
                 <Camera size={20} /> Enable Camera for Face Registration
               </button>
             ) : formData.admin_key !== 'STOV-ADMIN-MASTER-KEY' ? (
-              <div className="flex flex-col items-center bg-gray-900 p-4 rounded-lg border border-gray-700 relative">
-                <p className="mb-2 text-sm text-gray-300 font-medium">Position your face inside the dashed oval.</p>
-                <div className="relative w-full max-w-sm">
-                  <video ref={videoRef} autoPlay playsInline muted className="w-full rounded-lg border border-gray-600 bg-black transform scale-x-[-1]" />
+              <div className="flex flex-col items-center w-full bg-gray-800 p-4 rounded-xl border border-gray-600 relative">
+                <p className="mb-4 text-sm text-gray-400 font-medium text-center">Position your face inside the dashed oval.</p>
+                <div className="relative w-full max-w-sm mx-auto overflow-hidden rounded-lg border border-gray-600 bg-black aspect-video">
+                  <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover transform scale-x-[-1]" />
                   <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-1/2 h-3/4 border-4 border-dashed border-blue-500/70 rounded-[50%] pointer-events-none z-10"></div>
                 </div>
                 <canvas ref={canvasRef} width="640" height="480" className="hidden" />
@@ -166,38 +157,38 @@ const Register = () => {
             <button
               type="submit"
               disabled={isRegistering || (!cameraActive && formData.admin_key !== 'STOV-ADMIN-MASTER-KEY')}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition duration-200 flex items-center justify-center gap-2"
+              className="w-full mt-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl shadow-lg transition-all duration-200 active:scale-95 flex items-center justify-center gap-2"
             >
               {isRegistering ? 'Registering & Processing Face...' : <><UserPlus size={20} /> Register Account</>}
             </button>
-            <div className="text-center text-sm text-gray-400">
+            <div className="text-center text-sm text-gray-400 mt-6">
               Already have an account? <Link to="/login" className="text-blue-400 hover:underline">Login</Link>
             </div>
           </form>
         ) : (
-          <div className="space-y-6">
+          <div className="w-full flex flex-col items-center space-y-6">
             <div className="text-center">
-              <div className="bg-white p-4 rounded-lg inline-block mb-4">
+              <div className="bg-white p-4 rounded-xl shadow-lg inline-block mb-4">
                 <QRCodeSVG value={qrValue} size={180} />
               </div>
-              <h3 className="text-xl font-semibold text-green-400">Scan this QR Code</h3>
+              <h3 className="text-xl font-bold text-emerald-400">Scan this QR Code</h3>
             </div>
 
-            <div className="bg-gray-700/50 p-4 rounded-lg border border-gray-600 relative">
-              <p className="text-xs text-gray-400 mb-2 uppercase tracking-wide">Manual Entry Code</p>
-              <p className="font-mono text-lg text-yellow-400 tracking-widest break-all pr-8">
+            <div className="w-full bg-gray-700 p-4 rounded-xl border border-gray-600 relative text-center">
+              <p className="text-xs text-gray-400 mb-2 uppercase tracking-wide">Or use Manual Entry Code</p>
+              <p className="font-mono text-xl font-bold text-amber-400 tracking-widest break-all">
                 {manualKey}
               </p>
               <button 
                 onClick={handleCopy}
-                className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
+                className="absolute top-2 right-2 text-gray-400 hover:text-white transition-colors p-2"
                 title="Copy to clipboard"
               >
                 {copied ? <Check size={20} className="text-green-400" /> : <Copy size={20} />}
               </button>
             </div>
 
-            <div className="space-y-3 text-sm text-gray-300 bg-gray-800/50 p-3 rounded border border-gray-700">
+            <div className="w-full text-sm text-gray-300 bg-gray-700/50 p-4 rounded-xl border border-gray-600">
               <div className="flex items-center gap-3">
                 <Monitor size={18} className="text-blue-400 flex-shrink-0" />
                 <span>No phone? Use a browser extension like <strong>Authenticator</strong> or a desktop app like <strong>WinAuth</strong>.</span>
@@ -206,7 +197,7 @@ const Register = () => {
 
             <button
               onClick={() => navigate('/login')}
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-lg transition duration-200"
+              className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-lg transition-all duration-200 active:scale-95"
             >
               Proceed to Login
             </button>

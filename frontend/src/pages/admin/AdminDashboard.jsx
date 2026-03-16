@@ -187,7 +187,7 @@ const AdminDashboard = () => {
             <h2 className="text-xl font-semibold mb-4">Generate Registration Tokens</h2>
             <p className="text-gray-400 mb-6 text-sm">Create unique, one-time use codes for students to register.</p>
             
-            <form onSubmit={handleGenerateTokens} className="flex gap-4 items-end mb-8">
+            <form onSubmit={handleGenerateTokens} className="flex flex-col sm:flex-row gap-4 items-start sm:items-end mb-8">
               <div className="flex-1">
                 <label className="block text-sm font-medium text-gray-400 mb-1">Number of Tokens</label>
                 <input 
@@ -199,7 +199,7 @@ const AdminDashboard = () => {
                   className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-              <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-medium transition">
+              <button type="submit" className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-medium transition">
                 Generate
               </button>
             </form>
@@ -212,7 +212,7 @@ const AdminDashboard = () => {
                     <Download size={16} /> Download CSV
                   </button>
                 </div>
-                <div className="grid grid-cols-4 gap-2 font-mono text-sm text-gray-300 max-h-60 overflow-y-auto">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-sm text-gray-300 max-h-60 overflow-y-auto">
                   {generatedTokens.map((token, i) => (
                     <div key={i} className="bg-gray-800 p-2 rounded text-center select-all">{token}</div>
                   ))}
@@ -237,8 +237,8 @@ const AdminDashboard = () => {
             {/* Step 1: Define Election */}
             <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
               <h2 className="text-xl font-semibold mb-4">1. Create New Election</h2>
-              <form onSubmit={handleCreateElection} className="flex gap-4 items-end">
-                <div className="flex-1">
+              <form onSubmit={handleCreateElection} className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+                <div className="flex-1 w-full">
                   <label className="block text-sm font-medium text-gray-400 mb-1">Election Title</label>
                   <input 
                     type="text" 
@@ -248,7 +248,7 @@ const AdminDashboard = () => {
                     className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
-                <button type="submit" className="bg-green-600 hover:bg-green-700 text-white px-6 py-2.5 rounded-lg font-medium transition flex items-center gap-2">
+                <button type="submit" className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white px-6 py-2.5 rounded-lg font-medium transition flex justify-center items-center gap-2">
                   <Plus size={18} /> Create
                 </button>
               </form>
@@ -257,7 +257,7 @@ const AdminDashboard = () => {
             {/* Step 2: Save Keys (Only shows after creation) */}
             {createdElection && (
               <div className="bg-yellow-900/20 border border-yellow-600 p-6 rounded-xl animate-fade-in">
-                <div className="flex items-start gap-4">
+                <div className="flex flex-col sm:flex-row items-start gap-4">
                   <FileKey className="text-yellow-500 w-12 h-12 flex-shrink-0" />
                   <div className="w-full">
                     <h3 className="text-lg font-bold text-yellow-400 mb-2">CRITICAL: Save This Key!</h3>
@@ -277,8 +277,8 @@ const AdminDashboard = () => {
             {/* Step 3: Add Candidates */}
             <div className={`bg-gray-800 p-6 rounded-xl border border-gray-700 ${!createdElection ? 'opacity-50 pointer-events-none' : ''}`}>
               <h2 className="text-xl font-semibold mb-4">2. Add Candidates</h2>
-              <form onSubmit={handleAddCandidate} className="flex gap-4 items-end">
-                <div className="flex-1">
+              <form onSubmit={handleAddCandidate} className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+                <div className="flex-1 w-full">
                   <label className="block text-sm font-medium text-gray-400 mb-1">Candidate Name</label>
                   <input 
                     type="text" 
@@ -289,7 +289,7 @@ const AdminDashboard = () => {
                     className="w-full bg-gray-700 border border-gray-600 rounded-lg py-2 px-4 text-white focus:ring-2 focus:ring-blue-500 disabled:bg-gray-800"
                   />
                 </div>
-                <button type="submit" disabled={!createdElection} className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white px-6 py-2.5 rounded-lg font-medium transition flex items-center gap-2">
+                <button type="submit" disabled={!createdElection} className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white px-6 py-2.5 rounded-lg font-medium transition flex justify-center items-center gap-2">
                   <Save size={18} /> Add Candidate
                 </button>
               </form>
@@ -307,20 +307,20 @@ const AdminDashboard = () => {
             
             <div className="space-y-4">
               {allElections.map(election => (
-                <div key={election.id} className="bg-gray-900 p-4 rounded-lg border border-gray-700 flex justify-between items-center">
+                <div key={election.id} className="bg-gray-900 p-4 rounded-lg border border-gray-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                   <div>
                     <span className={`text-xs font-bold px-2 py-1 rounded-full ${election.is_active ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}`}>
                       {election.is_active ? 'ACTIVE' : 'CLOSED'}
                     </span>
                     <p className="font-semibold mt-2">{election.title} <span className="text-gray-500 font-mono text-sm">(ID: {election.id})</span></p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex w-full sm:w-auto gap-2">
                     {election.is_active && (
-                      <button onClick={() => handleCloseElection(election.id)} className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
+                      <button onClick={() => handleCloseElection(election.id)} className="flex-1 sm:flex-none bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
                         Close Voting
                       </button>
                     )}
-                    <button onClick={() => { setTallyElectionId(election.id); setTallyResults(null); setAuditResults(null); setSecretKeyInput(''); }} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
+                    <button onClick={() => { setTallyElectionId(election.id); setTallyResults(null); setAuditResults(null); setSecretKeyInput(''); }} className="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
                       Tally / Audit
                     </button>
                   </div>

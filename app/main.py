@@ -24,7 +24,7 @@ try:
 except ImportError:
     import sys, os
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    import face_verification
+    import app.face_verification as face_verification
 
 # --- NEW MODEL: Unique Registration Tokens ---
 class RegistrationToken(models.Base):
@@ -69,7 +69,8 @@ def get_current_admin(current_user: str = Depends(auth.get_current_user), db: Se
 class VoterCreate(BaseModel):
     voter_id: str
     password: str
-    invite_code: str
+    face_image: str | None = None
+    admin_key: str | None = None
     
 class VoterLogin(BaseModel):
     voter_id: str
@@ -100,30 +101,65 @@ class TokenGeneration(BaseModel):
 # --- API ROUTES ---
 @app.post("/voters/")
 def create_voter(voter: VoterCreate, db: Session = Depends(get_db)):
-    # 0. Security Gate: Check for Unique Token OR Admin Master Key
-    
     is_new_admin = False
     
-    # A. Check if it is the Master Key (For Admin Setup Only)
-    if voter.invite_code == "STOV-ADMIN-MASTER-KEY":
+    # Admin Master Key Check (Bypasses Face Requirement for Admins)
+    if voter.admin_key == "STOV-ADMIN-MASTER-KEY":
         is_new_admin = True # Grant admin privileges
-        
-    # B. Check if it is a valid One-Time Token
-    else:
-        token_record = db.query(RegistrationToken).filter(
-            RegistrationToken.token == voter.invite_code, 
-            RegistrationToken.is_used == False
-        ).first()
-        
-        if not token_record:
-            raise HTTPException(status_code=403, detail="Invalid or already used Invite Code.")
-        
-        # BURN THE TOKEN!
-        token_record.is_used = True
 
     db_voter = db.query(models.Voter).filter(models.Voter.voter_id == voter.voter_id).first()
     if db_voter:
         raise HTTPException(status_code=400, detail="Voter ID already registered")
+
+    # 1. Process Face Verification for standard voters
+    face_encoding_str = None
+    if not is_new_admin:
+        if not voter.face_image:
+            raise HTTPException(status_code=400, detail="Face image is required for registration.")
+            
+        try:
+            import base64
+            import numpy as np
+            import cv2
+            import face_recognition
+            import json
+            
+            if "," in voter.face_image:
+                header, encoded_data = voter.face_image.split(",", 1)
+            else:
+                encoded_data = voter.face_image
+                
+            image_bytes = base64.b64decode(encoded_data)
+            nparr = np.frombuffer(image_bytes, np.uint8)
+            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            
+            if img is None:
+                raise HTTPException(status_code=400, detail="Invalid image data.")
+                
+            rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            face_encodings = face_recognition.face_encodings(rgb_img)
+            
+            if len(face_encodings) == 0:
+                raise HTTPException(status_code=400, detail="No face detected in registration image. Please ensure good lighting.")
+            elif len(face_encodings) > 1:
+                raise HTTPException(status_code=400, detail="Multiple faces detected. Please ensure only you are in the frame.")
+                
+            captured_encoding = face_encodings[0]
+
+            # 1.5 Prevent Sybil Attacks (One Face = One Account)
+            existing_voters = db.query(models.Voter).filter(models.Voter.face_encoding.isnot(None)).all()
+            for existing_voter in existing_voters:
+                reference_encoding = np.array(json.loads(existing_voter.face_encoding))
+                distances = face_recognition.face_distance([reference_encoding], captured_encoding)
+                if distances[0] <= 0.65:
+                    raise HTTPException(status_code=400, detail="Registration denied: This biometric profile is already linked to an existing account.")
+                
+            # Save the math vector as a string array for the Database
+            face_encoding_str = json.dumps(captured_encoding.tolist())
+            
+        except Exception as e:
+            if isinstance(e, HTTPException): raise e
+            raise HTTPException(status_code=500, detail=f"Error processing face image: {str(e)}")
     
     hashed_pwd = get_password_hash(voter.password)
     
@@ -136,7 +172,8 @@ def create_voter(voter: VoterCreate, db: Session = Depends(get_db)):
         voter_id=voter.voter_id, 
         password_hash=hashed_pwd, 
         mfa_secret=encrypted_mfa_secret,  # Saving the encrypted secret now!
-        is_admin=is_new_admin
+        is_admin=is_new_admin,
+        face_encoding=face_encoding_str
     )
     
     db.add(new_voter)

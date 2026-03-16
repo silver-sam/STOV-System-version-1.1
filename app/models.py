@@ -10,6 +10,7 @@ class Voter(Base):
     password_hash = Column(String)
     mfa_secret = Column(String) # For the TOTP/Authenticator app
     is_admin = Column(Boolean, default=False)
+    face_encoding = Column(String, nullable=True) # Stores the 128D face vector as JSON
 
 class Election(Base):
     __tablename__ = "elections"

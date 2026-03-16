@@ -144,17 +144,17 @@ const VoterDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-8">
+    <div className="min-h-screen bg-gray-900 text-white p-4 sm:p-8">
       <div className="max-w-4xl mx-auto">
-        <header className="mb-8 border-b border-gray-700 pb-4 flex justify-between items-center">
+        <header className="mb-8 border-b border-gray-700 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-blue-500 flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-bold text-blue-500 flex items-center gap-3">
               <Vote className="text-blue-500" /> Voter Dashboard
             </h1>
             <p className="text-gray-400 mt-2 text-sm">Secure, Anonymous, and Immutable Voting.</p>
           </div>
           {isAdmin && (
-            <Link to="/admin" className="text-sm bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded border border-gray-600 transition">
+            <Link to="/admin" className="w-full sm:w-auto text-center text-sm bg-gray-800 hover:bg-gray-700 px-4 py-2 rounded border border-gray-600 transition">
                Switch to Admin View
             </Link>
           )}
@@ -231,8 +231,8 @@ const VoterDashboard = () => {
                   <p className="text-sm text-gray-300 font-semibold">Auto-detecting face...</p>
                   <p className="text-xs text-gray-500">Position your face inside the dashed oval</p>
                 </div>
-                <div className="relative w-full max-w-sm mb-4">
-                  <video ref={videoRef} autoPlay playsInline muted className="w-full rounded-lg border border-gray-600 bg-black transform scale-x-[-1]" />
+                <div className="relative w-full max-w-md mx-auto mb-4 overflow-hidden rounded-lg border border-gray-600 bg-black aspect-video">
+                  <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover transform scale-x-[-1]" />
                   <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-1/2 h-3/4 border-4 border-dashed border-blue-500/70 rounded-[50%] pointer-events-none z-10 animate-pulse"></div>
                 </div>
                 <canvas ref={canvasRef} width="640" height="480" className="hidden" />
@@ -255,7 +255,7 @@ const VoterDashboard = () => {
               <p className="text-gray-400">Your ballot has been successfully encrypted and stored.</p>
             </div>
 
-            <div className="space-y-4 bg-gray-900 p-6 rounded-lg border border-gray-700 font-mono text-sm break-all">
+            <div className="space-y-4 bg-gray-900 p-4 sm:p-6 rounded-lg border border-gray-700 font-mono text-xs sm:text-sm break-all">
               <div>
                 <span className="text-gray-500 block text-xs uppercase mb-1">Receipt ID</span>
                 <span className="text-yellow-400 select-all">{receipt.receipt_id}</span>

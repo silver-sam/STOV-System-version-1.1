@@ -1,23 +1,12 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import basicSsl from '@vitejs/plugin-basic-ssl'
 
 export default defineConfig({
-  plugins: [
-    react(),
-    basicSsl(), // Adds temporary HTTPS
-    {
-      name: 'fix-node-22-bug',
-      configureServer(server) {
-        if (server.httpServer && typeof server.httpServer.shouldUpgradeCallback !== 'function') {
-          server.httpServer.shouldUpgradeCallback = () => true;
-        }
-      }
-    }
-  ],
+  plugins: [react()],
   server: {
     host: true, // Exposes the server to your local network
     port: 5173,
+    allowedHosts: true, // Allows Cloudflare Tunnels to bypass the host check
     proxy: {
       '/api': {
         target: 'http://localhost:8000', // Try localhost instead of 127.0.0.1
