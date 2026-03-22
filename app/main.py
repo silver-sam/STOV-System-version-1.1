@@ -67,6 +67,8 @@ def get_current_admin(current_user: str = Depends(auth.get_current_user), db: Se
 
 # --- PYDANTIC SCHEMAS ---
 class VoterCreate(BaseModel):
+    name: str
+    email: str
     voter_id: str
     password: str
     face_image: str | None = None
@@ -93,73 +95,138 @@ class VoteCast(BaseModel):
 
 class ElectionTally(BaseModel):
     election_id: int
-    admin_secret_key: str
 
 class TokenGeneration(BaseModel):
     count: int
     
+class FaceDetectRequest(BaseModel):
+    image: str
+
+class AvatarUpdate(BaseModel):
+    avatar: str
+
 # --- API ROUTES ---
+@app.post("/detect-face/")
+def detect_face_presence(request: FaceDetectRequest):
+    """Fast endpoint used purely for real-time UI feedback (bounding box check only)."""
+    try:
+        import base64
+        import numpy as np
+        import cv2
+        import face_recognition
+        import math
+        
+        if "," in request.image:
+            header, encoded_data = request.image.split(",", 1)
+        else:
+            encoded_data = request.image
+            
+        image_bytes = base64.b64decode(encoded_data)
+        nparr = np.frombuffer(image_bytes, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        
+        if img is None:
+            return {"detected": False, "detail": "Invalid image format."}
+            
+        rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        # Use face_locations() which is exponentially faster than face_encodings()
+        face_locations = face_recognition.face_locations(rgb_img)
+        
+        if len(face_locations) == 1:
+            # Liveness Detection: Check Eye Aspect Ratio (Blink)
+            is_blinking = False
+            landmarks = face_recognition.face_landmarks(rgb_img, face_locations)
+            if landmarks:
+                def eye_aspect_ratio(eye):
+                    A = math.hypot(eye[1][0] - eye[5][0], eye[1][1] - eye[5][1])
+                    B = math.hypot(eye[2][0] - eye[4][0], eye[2][1] - eye[4][1])
+                    C = math.hypot(eye[0][0] - eye[3][0], eye[0][1] - eye[3][1])
+                    return (A + B) / (2.0 * C) if C != 0 else 0
+                
+                left_eye = landmarks[0].get('left_eye')
+                right_eye = landmarks[0].get('right_eye')
+                if left_eye and right_eye:
+                    ear = (eye_aspect_ratio(left_eye) + eye_aspect_ratio(right_eye)) / 2.0
+                    if ear < 0.22: # Standard threshold for closed eyes
+                        is_blinking = True
+
+            return {"detected": True, "blinking": is_blinking, "detail": "Face detected! Please blink once to verify liveness."}
+        elif len(face_locations) > 1:
+            return {"detected": False, "blinking": False, "detail": "Multiple faces detected. Please ensure only you are in the frame."}
+        else:
+            return {"detected": False, "blinking": False, "detail": "No face detected. Please face the camera."}
+    except Exception as e:
+        return {"detected": False, "blinking": False, "detail": "Scanning stream..."}
+
 @app.post("/voters/")
 def create_voter(voter: VoterCreate, db: Session = Depends(get_db)):
     is_new_admin = False
     
     # Admin Master Key Check (Bypasses Face Requirement for Admins)
-    if voter.admin_key == "STOV-ADMIN-MASTER-KEY":
+    admin_master_key = os.getenv("ADMIN_MASTER_KEY", "STOV-ADMIN-MASTER-KEY")
+    if voter.admin_key and voter.admin_key == admin_master_key:
+        # Security Check: Only allow the master key if NO admin exists yet
+        if db.query(models.Voter).filter(models.Voter.is_admin == True).first():
+            raise HTTPException(status_code=403, detail="Administrator already exists. The Master Key is permanently disabled.")
         is_new_admin = True # Grant admin privileges
 
     db_voter = db.query(models.Voter).filter(models.Voter.voter_id == voter.voter_id).first()
     if db_voter:
         raise HTTPException(status_code=400, detail="Voter ID already registered")
 
-    # 1. Process Face Verification for standard voters
+    # 1. Process Face Verification for ALL users
     face_encoding_str = None
-    if not is_new_admin:
-        if not voter.face_image:
-            raise HTTPException(status_code=400, detail="Face image is required for registration.")
+    if not voter.face_image:
+        raise HTTPException(status_code=400, detail="Face image is required for registration.")
+        
+    try:
+        import base64
+        import numpy as np
+        import cv2
+        import face_recognition
+        import json
+        
+        if "," in voter.face_image:
+            header, encoded_data = voter.face_image.split(",", 1)
+        else:
+            encoded_data = voter.face_image
             
-        try:
-            import base64
-            import numpy as np
-            import cv2
-            import face_recognition
-            import json
+        image_bytes = base64.b64decode(encoded_data)
+        nparr = np.frombuffer(image_bytes, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        
+        if img is None:
+            raise HTTPException(status_code=400, detail="Invalid image data.")
             
-            if "," in voter.face_image:
-                header, encoded_data = voter.face_image.split(",", 1)
-            else:
-                encoded_data = voter.face_image
-                
-            image_bytes = base64.b64decode(encoded_data)
-            nparr = np.frombuffer(image_bytes, np.uint8)
-            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        face_encodings = face_recognition.face_encodings(rgb_img)
+        
+        if len(face_encodings) == 0:
+            raise HTTPException(status_code=400, detail="No face detected in registration image. Please ensure good lighting.")
+        elif len(face_encodings) > 1:
+            raise HTTPException(status_code=400, detail="Multiple faces detected. Please ensure only you are in the frame.")
             
-            if img is None:
-                raise HTTPException(status_code=400, detail="Invalid image data.")
-                
-            rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            face_encodings = face_recognition.face_encodings(rgb_img)
-            
-            if len(face_encodings) == 0:
-                raise HTTPException(status_code=400, detail="No face detected in registration image. Please ensure good lighting.")
-            elif len(face_encodings) > 1:
-                raise HTTPException(status_code=400, detail="Multiple faces detected. Please ensure only you are in the frame.")
-                
-            captured_encoding = face_encodings[0]
+        captured_encoding = face_encodings[0]
 
-            # 1.5 Prevent Sybil Attacks (One Face = One Account)
-            existing_voters = db.query(models.Voter).filter(models.Voter.face_encoding.isnot(None)).all()
-            for existing_voter in existing_voters:
-                reference_encoding = np.array(json.loads(existing_voter.face_encoding))
-                distances = face_recognition.face_distance([reference_encoding], captured_encoding)
-                if distances[0] <= 0.65:
-                    raise HTTPException(status_code=400, detail="Registration denied: This biometric profile is already linked to an existing account.")
-                
-            # Save the math vector as a string array for the Database
-            face_encoding_str = json.dumps(captured_encoding.tolist())
+        # 1.5 Prevent Sybil Attacks scoped to role (One Face = One Voter, One Face = One Admin)
+        existing_voters = db.query(models.Voter).filter(
+            models.Voter.face_encoding.isnot(None),
+            models.Voter.is_admin == is_new_admin
+        ).all()
+        
+        for existing_voter in existing_voters:
+            reference_encoding = np.array(json.loads(existing_voter.face_encoding))
+            distances = face_recognition.face_distance([reference_encoding], captured_encoding)
+            if distances[0] <= 0.42:
+                role_name = "Admin" if is_new_admin else "Voter"
+                raise HTTPException(status_code=400, detail=f"Registration denied: Face matches an existing {role_name} account (Math Distance: {distances[0]:.3f}).")
             
-        except Exception as e:
-            if isinstance(e, HTTPException): raise e
-            raise HTTPException(status_code=500, detail=f"Error processing face image: {str(e)}")
+        # Save the math vector as a string array for the Database
+        face_encoding_str = json.dumps(captured_encoding.tolist())
+        
+    except Exception as e:
+        if isinstance(e, HTTPException): raise e
+        raise HTTPException(status_code=500, detail=f"Error processing face image: {str(e)}")
     
     hashed_pwd = get_password_hash(voter.password)
     
@@ -169,6 +236,8 @@ def create_voter(voter: VoterCreate, db: Session = Depends(get_db)):
     
     # 2. Save it to the database
     new_voter = models.Voter(
+        name=voter.name,
+        email=voter.email,
         voter_id=voter.voter_id, 
         password_hash=hashed_pwd, 
         mfa_secret=encrypted_mfa_secret,  # Saving the encrypted secret now!
@@ -191,6 +260,14 @@ def create_voter(voter: VoterCreate, db: Session = Depends(get_db)):
         "mfa_setup_key": user_mfa_secret,
         "mfa_qr_uri": provisioning_uri
     }
+
+@app.get("/debug/clear-voters")
+def clear_all_voters(db: Session = Depends(get_db)):
+    """HELPER: Wipes all voters from the database to clear out ghost testing records."""
+    db.query(models.VoteRecord).delete()
+    db.query(models.Voter).delete()
+    db.commit()
+    return {"message": "All voters and biometric data have been completely wiped! You can start fresh."}
 
 @app.post("/admin/generate-tokens/")
 def generate_registration_tokens(req: TokenGeneration, db: Session = Depends(get_db), current_admin: str = Depends(get_current_admin)):
@@ -256,6 +333,19 @@ def list_candidates(election_id: int, db: Session = Depends(get_db)):
         for i, c in enumerate(candidates)
     ]
 
+@app.delete("/candidates/{candidate_id}")
+def remove_candidate(candidate_id: int, db: Session = Depends(get_db), current_admin: str = Depends(get_current_admin)):
+    db_candidate = db.query(models.Candidate).filter(models.Candidate.id == candidate_id).first()
+    if not db_candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found.")
+        
+    if db.query(models.Ballot).filter(models.Ballot.election_id == db_candidate.election_id).first():
+        raise HTTPException(status_code=400, detail="Cannot remove a candidate after voting has begun to ensure vector consistency.")
+        
+    db.delete(db_candidate)
+    db.commit()
+    return {"message": f"Candidate '{db_candidate.name}' removed successfully."}
+
 @app.get("/elections/")
 def list_active_elections(db: Session = Depends(get_db)):
     elections = db.query(models.Election).filter(models.Election.is_active == True).all()
@@ -269,6 +359,20 @@ def list_all_elections(db: Session = Depends(get_db), current_admin: str = Depen
     return [
         {"id": e.id, "title": e.title, "is_active": e.is_active} for e in elections
     ]
+
+@app.get("/admin/analytics/")
+def get_analytics(db: Session = Depends(get_db), current_admin: str = Depends(get_current_admin)):
+    total_voters = db.query(models.Voter).filter(models.Voter.is_admin == False).count()
+    voters_who_voted = db.query(models.VoteRecord.voter_id).distinct().count()
+    total_elections = db.query(models.Election).count()
+    total_ballots = db.query(models.Ballot).count()
+    
+    return {
+        "total_registered_voters": total_voters,
+        "voters_who_voted": voters_who_voted,
+        "total_elections": total_elections,
+        "total_ballots_cast": total_ballots
+    }
 
 @app.post("/login/")
 def login_voter(voter: VoterLogin, db: Session = Depends(get_db)):
@@ -352,24 +456,8 @@ def create_election(election: ElectionCreate, db: Session = Depends(get_db), cur
     
     return {
         "message": "Election Created! Cryptographic keys generated.",
-        "election_id": new_election.id,
-        "admin_secret_key_DO_NOT_LOSE": sec_key_str
+        "election_id": new_election.id
     }
-
-@app.post("/elections/{election_id}/recover-key")
-def recover_election_key(election_id: int, db: Session = Depends(get_db), current_admin: str = Depends(get_current_admin)):
-    db_election = db.query(models.Election).filter(models.Election.id == election_id).first()
-    if not db_election:
-        raise HTTPException(status_code=404, detail="Election not found.")
-    
-    if not db_election.secret_key_backup:
-        raise HTTPException(status_code=404, detail="No backup key found for this election.")
-        
-    try:
-        decrypted_key = crypto.decrypt_mfa_secret(db_election.secret_key_backup)
-        return {"admin_secret_key": decrypted_key}
-    except Exception:
-        raise HTTPException(status_code=500, detail="Failed to decrypt backup key.")
 
 @app.put("/elections/{election_id}/close")
 def close_election(election_id: int, db: Session = Depends(get_db), current_admin: str = Depends(get_current_admin)):
@@ -384,6 +472,20 @@ def close_election(election_id: int, db: Session = Depends(get_db), current_admi
     db.commit()
     
     return {"message": f"Election '{db_election.title}' has been closed. No more votes will be accepted."}
+
+@app.delete("/elections/{election_id}")
+def delete_election(election_id: int, db: Session = Depends(get_db), current_admin: str = Depends(get_current_admin)):
+    db_election = db.query(models.Election).filter(models.Election.id == election_id).first()
+    if not db_election:
+        raise HTTPException(status_code=404, detail="Election not found.")
+    
+    if db.query(models.Ballot).filter(models.Ballot.election_id == election_id).first():
+        raise HTTPException(status_code=400, detail="Cannot delete an election after voting has begun to protect audit integrity.")
+        
+    db.query(models.Candidate).filter(models.Candidate.election_id == election_id).delete()
+    db.delete(db_election)
+    db.commit()
+    return {"message": f"Election '{db_election.title}' deleted successfully."}
 
 
 @app.post("/cast-vote/")
@@ -427,8 +529,10 @@ def cast_vote(vote: VoteCast, db: Session = Depends(get_db), current_voter: str 
     encrypted_bytes = crypto.encrypt_vote(pub_context_bytes, vote_array)
     encrypted_str = base64.b64encode(encrypted_bytes).decode('utf-8')
     
-    # 6. Generate a unique Receipt ID and Digital Fingerprint
-    receipt_id = uuid.uuid4().hex
+    # 6. Generate a unique Receipt ID and Digital Fingerprint (Scoping it to the Election)
+    raw_uuid = uuid.uuid4().hex
+    receipt_id = f"E{db_election.id}-{raw_uuid}"
+
     # SECURITY UPGRADE: Bind the Election ID to the fingerprint.
     # This ensures a vote cannot be moved to a different election in the DB without breaking the audit.
     fingerprint_payload = f"{db_election.id}:{encrypted_str}"
@@ -510,9 +614,10 @@ def tally_election(tally_req: ElectionTally, db: Session = Depends(get_db), curr
    # 3. Decode the Public Key and Secret Key back into raw bytes
     pub_context_bytes = base64.b64decode(db_election.public_key)
     try:
-        sec_context_bytes = base64.b64decode(tally_req.admin_secret_key)
+        decrypted_key = crypto.decrypt_mfa_secret(db_election.secret_key_backup)
+        sec_context_bytes = base64.b64decode(decrypted_key)
     except Exception:
-        raise HTTPException(status_code=400, detail="Invalid secret key format.")
+        raise HTTPException(status_code=500, detail="Failed to retrieve or decrypt the election secret key.")
 
     # 4. THE MAGIC: Process the election in a memory-efficient way!
     # Create a generator expression instead of a full list in memory
@@ -548,11 +653,34 @@ def tally_election(tally_req: ElectionTally, db: Session = Depends(get_db), curr
         else:
             results_dict[candidate.name] = 0
 
+    import json
+    db_election.final_results = json.dumps(results_dict)
+    db.commit()
+
     return {
         "message": "Election successfully tallied using Homomorphic Encryption!",
         "total_votes_counted": len(ballots),
         "official_results": results_dict
     }
+
+@app.get("/results/")
+def get_past_results(db: Session = Depends(get_db)):
+    elections = db.query(models.Election).filter(models.Election.is_active == False, models.Election.final_results.isnot(None)).order_by(models.Election.id.desc()).all()
+    
+    results = []
+    import json
+    for e in elections:
+        try:
+            official_results = json.loads(e.final_results)
+            results.append({
+                "id": e.id,
+                "title": e.title,
+                "official_results": official_results,
+                "total_votes": sum(official_results.values())
+            })
+        except Exception:
+            continue
+    return results
 
 @app.get("/audit-election/{election_id}")
 def audit_election(election_id: int, db: Session = Depends(get_db)):
@@ -613,8 +741,17 @@ def audit_election(election_id: int, db: Session = Depends(get_db)):
         all_db_receipt_ids = {r[0] for r in all_db_receipts}
         
         for event in chain_events:
-            if event['receipt_id'] not in all_db_receipt_ids:
-                issues.append(f"GHOST VOTE DETECTED: Blockchain has receipt {event['receipt_id']} (Tx: {event['transaction_hash']}) but it is missing from the database!")
+            receipt = event['receipt_id']
+            
+            # ISOLATION FIX: If the receipt has the Election ID prefix (e.g., E1-...), 
+            # we can safely ignore ghost votes that belong to OTHER elections.
+            if receipt.startswith("E") and "-" in receipt:
+                event_election_id = receipt.split("-")[0][1:]
+                if event_election_id != str(election_id):
+                    continue # This ghost vote belongs to a different election. Ignore it here.
+                    
+            if receipt not in all_db_receipt_ids:
+                issues.append(f"GHOST VOTE DETECTED: Blockchain has receipt {receipt} (Tx: {event['transaction_hash']}) but it is missing from the database!")
     except Exception as e:
         issues.append(f"COULD NOT FETCH EVENTS: {str(e)}")
 
@@ -631,3 +768,77 @@ def audit_election(election_id: int, db: Session = Depends(get_db)):
         "message": "Audit passed. All database records match and all blockchain transactions are mathematically authentic.",
         "total_valid_votes": total_ballots
     }
+
+@app.get("/track-vote/{receipt_id}")
+def track_vote(receipt_id: str, db: Session = Depends(get_db)):
+    """Allows a voter to independently verify their vote hasn't been tampered with."""
+    # 1. Get the contract address
+    config = db.query(models.SystemConfig).filter(models.SystemConfig.key == "contract_address").first()
+    if not config or not config.value:
+        raise HTTPException(status_code=500, detail="Blockchain not configured. Cannot verify integrity.")
+
+    # 2. Ask the Blockchain for the truth FIRST
+    try:
+        on_chain_fingerprint = blockchain.verify_vote_on_chain(config.value, receipt_id)
+    except Exception:
+        on_chain_fingerprint = ""
+
+    # 3. Fetch ballot from DB
+    ballot = db.query(models.Ballot).filter(models.Ballot.receipt_id == receipt_id).first()
+    if not ballot:
+        # If the blockchain has it, but the DB doesn't, the DB was tampered with (vote deleted)!
+        if on_chain_fingerprint and on_chain_fingerprint.strip() != "":
+            return {
+                "status": "TAMPERED",
+                "message": "CRITICAL ALERT: Your vote was securely anchored to the blockchain, but it has been DELETED from the main database! The system has been compromised."
+            }
+        # If neither has it, it's just a typo.
+        raise HTTPException(status_code=404, detail="Tracking ID not found anywhere in the system. No record exists in the database or on the blockchain. Please check for typos.")
+
+    # 4. Recalculate mathematical fingerprint
+    fingerprint_payload = f"{ballot.election_id}:{ballot.encrypted_vote_data}"
+    current_fingerprint = hashlib.sha256(fingerprint_payload.encode('utf-8')).hexdigest()
+
+    # 5. Verify the actual transaction status
+    try:
+        tx_receipt = blockchain.w3.eth.get_transaction_receipt(ballot.transaction_hash)
+        if tx_receipt.status != 1:
+            return {"status": "FAILED", "message": "The transaction failed or is still pending on the blockchain."}
+
+        if on_chain_fingerprint == current_fingerprint:
+            return {
+                "status": "VERIFIED",
+                "election_id": ballot.election_id,
+                "timestamp": ballot.timestamp.isoformat() if ballot.timestamp else None,
+                "message": "Your vote is cryptographically verified and securely anchored to the blockchain. It has not been tampered with."
+            }
+        else:
+            return {
+                "status": "TAMPERED",
+                "message": "CRITICAL ALERT: The database record does not match the permanent blockchain fingerprint! This vote has been tampered with."
+            }
+    except Exception as e:
+        return {"status": "ERROR", "message": f"Could not establish a connection to the blockchain: {str(e)}"}
+
+@app.get("/profile/")
+def get_profile(db: Session = Depends(get_db), current_user: str = Depends(auth.get_current_user)):
+    voter = db.query(models.Voter).filter(models.Voter.voter_id == current_user).first()
+    if not voter:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {
+        "name": voter.name or "Unknown",
+        "email": voter.email or "Unknown",
+        "voter_id": voter.voter_id,
+        "is_admin": voter.is_admin,
+        "avatar": voter.avatar
+    }
+
+@app.put("/profile/avatar/")
+def update_avatar(req: AvatarUpdate, db: Session = Depends(get_db), current_user: str = Depends(auth.get_current_user)):
+    voter = db.query(models.Voter).filter(models.Voter.voter_id == current_user).first()
+    if not voter:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    voter.avatar = req.avatar
+    db.commit()
+    return {"message": "Avatar saved to database successfully."}

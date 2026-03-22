@@ -7,10 +7,13 @@ class Voter(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     voter_id = Column(String, unique=True, index=True) # e.g., BSCIT-05-0828/2023
+    name = Column(String, nullable=True)
+    email = Column(String, nullable=True)
     password_hash = Column(String)
     mfa_secret = Column(String) # For the TOTP/Authenticator app
     is_admin = Column(Boolean, default=False)
     face_encoding = Column(String, nullable=True) # Stores the 128D face vector as JSON
+    avatar = Column(String, nullable=True) # Stores the base64 profile photo
 
 class Election(Base):
     __tablename__ = "elections"
@@ -22,6 +25,7 @@ class Election(Base):
     public_key = Column(String) # The key used for Homomorphic Encryption
     secret_key_backup = Column(String, nullable=True) # Encrypted backup of the admin key
     is_active = Column(Boolean, default=True)
+    final_results = Column(String, nullable=True) # Stores JSON string of the official tally
 
 class Candidate(Base):
     __tablename__ = "candidates"
