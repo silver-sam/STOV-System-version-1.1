@@ -1,0 +1,8 @@
+# Environment Variables
+.env
+*.env
+
+# Database & Blockchain Data
+*data/
+
+*.gitignore
