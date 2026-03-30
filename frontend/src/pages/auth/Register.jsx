@@ -68,6 +68,20 @@ const Register = () => {
     return () => stopCamera();
   }, []);
 
+  // Live Validation Checks (Must be declared BEFORE the useEffect uses them)
+  const isNameValid = formData.name.trim().split(/\s+/).length >= 2;
+  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email);
+  const isVoterIdValid = formData.voter_id.trim().length > 0;
+  const pwdHasLength = formData.password.length >= 8;
+  const pwdHasUpper = /[A-Z]/.test(formData.password);
+  const pwdHasLower = /[a-z]/.test(formData.password);
+  const pwdHasNumber = /\d/.test(formData.password);
+  const pwdHasSpecial = /[^A-Za-z0-9\s]/.test(formData.password);
+  const pwdNoSpaces = formData.password.length > 0 && !/\s/.test(formData.password);
+  const isPasswordValid = pwdHasLength && pwdHasUpper && pwdHasLower && pwdHasNumber && pwdHasSpecial && pwdNoSpaces;
+  const isAdminKeyValid = !isAdminRegistration || formData.admin_key.trim().length > 0;
+  const isFormValid = isNameValid && isEmailValid && isVoterIdValid && isPasswordValid && isAdminKeyValid;
+
   // Real-time Face Detection Polling
   useEffect(() => {
     let timeoutId;
@@ -97,66 +111,61 @@ const Register = () => {
       context.drawImage(video, 0, 0, targetWidth, targetHeight);
       const frame = canvas.toDataURL('image/jpeg', 0.5);
 
-      let shouldStopPolling = false;
-
       try {
         const res = await apiClient.post('/detect-face/', { image: frame });
         setFaceDetected(res.data.detected);
         
-        if (res.data.detected) {
-          let currentBlinkState = hasBlinked;
+        if (!res.data.detected) {
+          setFaceFeedback(res.data.detail || 'Scanning...');
+          return;
+        }
+
+        // We have a face, now check liveness
+        if (!hasBlinked) {
           if (res.data.blinking) {
             setHasBlinked(true);
-            currentBlinkState = true;
-          }
-
-          if (!currentBlinkState) {
+            setFaceFeedback('Liveness verified! Open your eyes to register...');
+          } else {
             setFaceFeedback('Face detected! Please BLINK to verify liveness.');
-          } else {
-          if (formRef.current && formRef.current.checkValidity()) {
-              if (!hasAutoSubmittedRef.current && !res.data.blinking) {
-                setFaceFeedback('Liveness verified! Auto-registering...');
-              hasAutoSubmittedRef.current = true;
-              if (submitBtnRef.current) submitBtnRef.current.click();
-              shouldStopPolling = true;
-              } else if (!hasAutoSubmittedRef.current) {
-                setFaceFeedback('Liveness verified! Open your eyes to snap photo...');
-            } else {
-                setFaceFeedback('Liveness verified! Click Register to try again.');
-            }
-          } else {
-              setFaceFeedback('Liveness verified! Please complete all fields.');
           }
-          }
-        } else {
-          setFaceFeedback(res.data.detail);
+          return;
         }
+
+        // Liveness is verified (hasBlinked is true), now wait for eyes to be open
+        if (res.data.blinking) {
+          setFaceFeedback('Liveness verified! Open your eyes to register...');
+          return;
+        }
+
+        // Eyes are open, form is valid, and we haven't submitted yet
+        if (isFormValid && !hasAutoSubmittedRef.current) {
+          setFaceFeedback('Liveness confirmed! Auto-registering...');
+          hasAutoSubmittedRef.current = true;
+          if (submitBtnRef.current) {
+            submitBtnRef.current.click();
+          }
+          return; // Stop polling after submission attempt
+        } else if (!isFormValid) {
+            setFaceFeedback('Liveness verified! Please complete all fields.');
+        } else if (hasAutoSubmittedRef.current) {
+            setFaceFeedback('Liveness verified! Click Register to try again if auto-submit fails.');
+        }
+
       } catch (err) {
         setFaceDetected(false);
         setFaceFeedback('Scanning stream...');
       } finally {
         autoDetectRef.current = false;
-        if (cameraActive && !shouldStopPolling && !isRegistering) timeoutId = setTimeout(pollFace, 300); // Poll faster for blink detection
+        if (cameraActive && !isRegistering && !hasAutoSubmittedRef.current) {
+            timeoutId = setTimeout(pollFace, 300);
+        }
       }
     };
 
     if (cameraActive) { autoDetectRef.current = false; timeoutId = setTimeout(pollFace, 300); } 
     else { setFaceDetected(false); setFaceFeedback('Position your face inside the dashed circle.'); }
     return () => clearTimeout(timeoutId);
-  }, [cameraActive, isRegistering, hasBlinked]);
-
-  // Live Validation Checks
-  const isNameValid = formData.name.trim().split(/\s+/).length >= 2;
-  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email);
-  const isVoterIdValid = formData.voter_id.trim().length > 0;
-  const pwdHasLength = formData.password.length >= 8;
-  const pwdHasUpper = /[A-Z]/.test(formData.password);
-  const pwdHasLower = /[a-z]/.test(formData.password);
-  const pwdHasNumber = /\d/.test(formData.password);
-  const pwdHasSpecial = /[^A-Za-z0-9\s]/.test(formData.password);
-  const pwdNoSpaces = formData.password.length > 0 && !/\s/.test(formData.password);
-  const isPasswordValid = pwdHasLength && pwdHasUpper && pwdHasLower && pwdHasNumber && pwdHasSpecial && pwdNoSpaces;
-  const isFormValid = isNameValid && isEmailValid && isVoterIdValid && isPasswordValid;
+  }, [cameraActive, isRegistering, hasBlinked, isFormValid]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -229,6 +238,7 @@ const Register = () => {
       } else {
         setError(err.message || 'Registration failed. Network error.');
       }
+      hasAutoSubmittedRef.current = false; // Allow another auto-submit attempt on failure
     } finally {
       setIsRegistering(false);
     }
@@ -286,7 +296,7 @@ const Register = () => {
                 type="text"
                 required
                 className={`w-full bg-gray-100 dark:bg-gray-700 border ${formData.voter_id.length > 0 ? (isVoterIdValid ? 'border-green-500' : 'border-red-400') : 'border-gray-300 dark:border-gray-600'} rounded-xl py-3 px-4 text-gray-900 dark:text-white text-center focus:ring-2 focus:ring-blue-500 outline-none transition-all`}
-                placeholder={isAdminRegistration ? "ADMIN-123" : "your voter ID"}
+                placeholder={isAdminRegistration ? "ADMIN-123" : "e.g. Employee ID, National ID..."}
                 value={formData.voter_id}
                 onChange={(e) => setFormData({ ...formData, voter_id: e.target.value })}
               />
@@ -342,10 +352,13 @@ const Register = () => {
             </div>
             {isAdminRegistration && (
               <div className="w-full text-center">
-                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">Admin Master Key <span className="text-gray-400 dark:text-gray-500 text-xs">(Optional)</span></label>
+                <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-2 flex items-center justify-center gap-2">
+                  Admin Master Key {formData.admin_key.length > 0 && <Check size={16} className="text-green-500" />}
+                </label>
                 <div className="relative">
                   <input
                     type={showAdminKey ? "text" : "password"}
+                    required
                     className="w-full bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl py-3 px-10 text-gray-900 dark:text-white text-center focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                     placeholder="insert admin master key"
                     value={formData.admin_key}

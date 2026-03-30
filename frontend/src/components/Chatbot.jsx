@@ -5,7 +5,8 @@ const faqs = [
   { q: "How do I cast my vote?", a: "To cast your vote, go to the 'Active Elections' tab, click on an open election, select your preferred candidate, and use the camera to verify your face. Once verified, your vote will be securely encrypted and submitted!" },
   { q: "Is my vote really secure?", a: "Yes! Your vote is mathematically encrypted using Homomorphic Encryption before it ever leaves your device. It is then securely anchored to a local blockchain ledger, making it tamper-proof and completely anonymous." },
   { q: "How do I track my vote?", a: "After you vote, you'll receive a unique Tracking ID. Go to the 'Track Vote' tab and enter this ID to independently verify that your vote was counted and hasn't been altered." },
-  { q: "When will I see the results?", a: "Once the election administrator officially closes the election and tallies the votes, the final results will automatically appear in your 'Past Results' tab." }
+  { q: "When will I see the results?", a: "Once the election administrator officially closes the election and tallies the votes, the final results will automatically appear in your 'Past Results' tab." },
+  { q: "Lost Authenticator / Need Reset?", a: "If you lost your Authenticator app, please contact your Election Administrator. They can securely reset your account, allowing you to re-register with your Voter ID and face." }
 ];
 
 const intents = [
@@ -26,8 +27,8 @@ const intents = [
     response: "Once the election administrator officially closes the election and tallies the votes, the final results will automatically appear in your 'Past Results' tab."
   },
   {
-    keywords: ['hi', 'hello', 'hey', 'greetings', 'help', 'guide', 'stov'],
-    response: "Hello there! How can I help you navigate the STOV system today? Ask me about voting, security, tracking, or results."
+    keywords: ['hi', 'hello', 'hey', 'greetings', 'help', 'guide', 'aegis', 'aegiselect'],
+    response: "Hello there! How can I help you navigate AegisElect today? Ask me about voting, security, tracking, or results."
   },
   {
     keywords: ['camera', 'face', 'blink', 'scan', 'biometric', 'detect', 'video', 'lens', 'liveness'],
@@ -40,13 +41,17 @@ const intents = [
   {
     keywords: ['register', 'sign up', 'account', 'login', 'mfa', 'authenticator', 'code', 'password', 'token'],
     response: "To access the system, you must log in with your Voter ID, Password, and a 6-digit MFA code from your authenticator app (like Google Authenticator)."
+  },
+  {
+    keywords: ['lost', 'reset', 'delete', 'locked', 'contact', 'reach', 'issue', 'problem', 'stuck', 'recreate'],
+    response: "If you are locked out, lost your Authenticator app, or need your account reset, please reach out to your Election Administrator. They can securely reset your account from their dashboard so you can register again."
   }
 ];
 
 const Chatbot = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { sender: 'bot', text: "Hi there! 👋 I'm the STOV assistant. How can I help you navigate the system today?" }
+    { sender: 'bot', text: "Hi there! 👋 I'm the AegisElect assistant. How can I help you navigate the system today?" }
   ]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -116,7 +121,7 @@ const Chatbot = () => {
           <div className="bg-blue-600 dark:bg-blue-700 p-4 flex justify-between items-center text-white shadow-md z-10">
             <div className="flex items-center gap-2">
               <MessageSquare size={20} />
-              <span className="font-bold tracking-wide">STOV Guide</span>
+              <span className="font-bold tracking-wide">AegisElect Guide</span>
             </div>
             <button onClick={() => setIsOpen(false)} className="text-blue-100 hover:text-white transition-colors">
               <X size={20} />

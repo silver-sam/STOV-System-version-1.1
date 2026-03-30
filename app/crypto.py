@@ -2,8 +2,11 @@ import tenseal as ts
 import os
 from cryptography.fernet import Fernet
 
-# Use an environment variable for the secret key in production!
-MFA_ENCRYPTION_KEY = os.getenv("MFA_ENCRYPTION_KEY", b'qsMr2sDL8UXFviWYHjQWNFBdgFBHZM7thhPqF-cWTUU=')
+MFA_ENCRYPTION_KEY = os.getenv("MFA_ENCRYPTION_KEY")
+if not MFA_ENCRYPTION_KEY:
+    # Fallback to the exact key used to encrypt existing users in your DB
+    MFA_ENCRYPTION_KEY = b'qsMr2sDL8UXFviWYHjQWNFBdgFBHZM7thhPqF-cWTUU='
+
 f = Fernet(MFA_ENCRYPTION_KEY)
 
 def encrypt_mfa_secret(secret: str) -> str:

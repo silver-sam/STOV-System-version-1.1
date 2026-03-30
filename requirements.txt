@@ -15,3 +15,6 @@ cmake
 face_recognition==1.3.0
 opencv-python-headless==4.9.0.80
 setuptools==68.2.2
+slowapi==0.1.4
+aiofiles==23.1.0
+fastapi-mail==1.0.0

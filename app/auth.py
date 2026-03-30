@@ -4,8 +4,11 @@ from datetime import datetime, timedelta
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 
-# SECRET_KEY should be in an environment variable in production
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-super-secret-key-that-should-be-changed")
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+if not SECRET_KEY:
+    # Fallback for local development
+    SECRET_KEY = "your-super-secret-key-that-should-be-changed"
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 

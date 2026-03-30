@@ -2,6 +2,24 @@ from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
 from sqlalchemy.sql import func
 from .database import Base
 
+class SupportTicket(Base):
+    __tablename__ = "support_tickets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    voter_id = Column(String, index=True)
+    message = Column(String)
+    status = Column(String, default="pending") # "pending" or "resolved"
+    created_at = Column(DateTime, default=func.now())
+
+class PasswordResetToken(Base):
+    __tablename__ = "password_reset_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    voter_id = Column(String, index=True)
+    token = Column(String, unique=True, index=True)
+    expires_at = Column(DateTime)
+    is_used = Column(Boolean, default=False)
+
 class Voter(Base):
     __tablename__ = "voters"
 
@@ -24,8 +42,10 @@ class Election(Base):
     end_time = Column(DateTime)
     public_key = Column(String) # The key used for Homomorphic Encryption
     secret_key_backup = Column(String, nullable=True) # Encrypted backup of the admin key
-    is_active = Column(Boolean, default=True)
+    is_active = Column(Boolean, default=False)
+    status = Column(String, default="setup") # "setup", "active", "closed"
     final_results = Column(String, nullable=True) # Stores JSON string of the official tally
+    is_exclusive = Column(Boolean, default=False) # Only 1 exclusive election allowed per voter
 
 class Candidate(Base):
     __tablename__ = "candidates"
@@ -33,6 +53,8 @@ class Candidate(Base):
     id = Column(Integer, primary_key=True, index=True)
     election_id = Column(Integer, ForeignKey("elections.id"))
     name = Column(String)
+    party = Column(String, nullable=True)
+    photo = Column(String, nullable=True) # Stores the base64 profile photo
 
 class Ballot(Base):
     __tablename__ = "ballots"
