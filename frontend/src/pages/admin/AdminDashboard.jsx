@@ -2,7 +2,7 @@ import { useState, useEffect, useContext } from 'react';
 import apiClient from '../../api/client';
 import { useNavigate } from 'react-router-dom';
 import AuthContext from '../../context/AuthContext';
-import { Plus, Save, Users, Vote, ShieldAlert, Scale, RefreshCw, Sun, Moon, User, LogOut, AlertCircle, Activity, PieChart, Download, Trash2, Menu, X, Check, Rocket, Inbox, KeyRound, Copy, BarChart3 } from 'lucide-react';
+import { Plus, Save, Users, Vote, ShieldAlert, Scale, RefreshCw, Sun, Moon, User, LogOut, AlertCircle, Activity, PieChart, Download, Trash2, Menu, X, Check, Rocket, Inbox, KeyRound, Copy, BarChart3, Eye, ClipboardList } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
 const AdminDashboard = () => {
@@ -39,6 +39,10 @@ const AdminDashboard = () => {
   const [tallyElectionId, setTallyElectionId] = useState(null);
   const [tallyResults, setTallyResults] = useState(null);
   const [auditResults, setAuditResults] = useState(null);
+  const [electionDetailsModalOpen, setElectionDetailsModalOpen] = useState(false);
+  const [selectedElectionDetails, setSelectedElectionDetails] = useState(null);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+
   const [profile, setProfile] = useState({ name: 'Loading...', email: 'Loading...', voter_id: 'Loading...' });
   const [avatar, setAvatar] = useState(null);
   const [supportTickets, setSupportTickets] = useState([]);
@@ -681,7 +685,7 @@ const AdminDashboard = () => {
             onClick={() => { setActiveTab('tally'); setIsMobileMenuOpen(false); }}
             className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'tally' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'}`}
           >
-            <Scale size={20} /> Tally & Audit
+            <ClipboardList size={20} /> Manage Elections
           </button>
           <button 
             onClick={() => { setActiveTab('inbox'); setIsMobileMenuOpen(false); }}
@@ -735,81 +739,78 @@ const AdminDashboard = () => {
             </div>
             
             {analyticsData ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div className="bg-blue-50 dark:bg-blue-900/20 p-5 sm:p-6 rounded-2xl border border-blue-200 dark:border-blue-800 shadow-sm">
-                  <p className="text-blue-600 dark:text-blue-400 text-sm font-bold uppercase tracking-wider mb-2">Registered Voters</p>
-                  <div className="flex items-center gap-4">
-                    <Users className="w-10 h-10 text-blue-500 opacity-80" />
-                    <p className="text-4xl font-black text-blue-900 dark:text-blue-100">{analyticsData.total_registered_voters}</p>
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div className="bg-blue-50 dark:bg-blue-900/20 p-5 sm:p-6 rounded-2xl border border-blue-200 dark:border-blue-800 shadow-sm">
+                    <p className="text-blue-600 dark:text-blue-400 text-sm font-bold uppercase tracking-wider mb-2">Registered Voters</p>
+                    <div className="flex items-center gap-4">
+                      <Users className="w-10 h-10 text-blue-500 opacity-80" />
+                      <p className="text-4xl font-black text-blue-900 dark:text-blue-100">{analyticsData.total_registered_voters}</p>
+                    </div>
+                  </div>
+                  <div className="bg-green-50 dark:bg-green-900/20 p-5 sm:p-6 rounded-2xl border border-green-200 dark:border-green-800 shadow-sm">
+                    <p className="text-green-600 dark:text-green-400 text-sm font-bold uppercase tracking-wider mb-2">Voters Who Voted</p>
+                    <div className="flex items-center gap-4">
+                      <Activity className="w-10 h-10 text-green-500 opacity-80" />
+                      <p className="text-4xl font-black text-green-900 dark:text-green-100">{analyticsData.voters_who_voted}</p>
+                    </div>
+                  </div>
+                  <div className="bg-purple-50 dark:bg-purple-900/20 p-5 sm:p-6 rounded-2xl border border-purple-200 dark:border-purple-800 shadow-sm">
+                    <p className="text-purple-600 dark:text-purple-400 text-sm font-bold uppercase tracking-wider mb-2">Total Ballots Cast</p>
+                    <div className="flex items-center gap-4">
+                      <Vote className="w-10 h-10 text-purple-500 opacity-80" />
+                      <p className="text-4xl font-black text-purple-900 dark:text-purple-100">{analyticsData.total_ballots_cast}</p>
+                    </div>
+                  </div>
+                  <div className="bg-amber-50 dark:bg-amber-900/20 p-5 sm:p-6 rounded-2xl border border-amber-200 dark:border-amber-800 shadow-sm">
+                    <p className="text-amber-600 dark:text-amber-400 text-sm font-bold uppercase tracking-wider mb-2">Current Elections</p>
+                    <div className="flex items-center gap-4">
+                      <Scale className="w-10 h-10 text-amber-500 opacity-80" />
+                      <p className="text-4xl font-black text-amber-900 dark:text-amber-100">{analyticsData.total_elections}</p>
+                    </div>
+                  </div>
+                  <div className="bg-cyan-50 dark:bg-cyan-900/20 p-5 sm:p-6 rounded-2xl border border-cyan-200 dark:border-cyan-800 shadow-sm col-span-1 sm:col-span-2">
+                    <p className="text-cyan-600 dark:text-cyan-400 text-sm font-bold uppercase tracking-wider mb-2">Total Elections Conducted (incl. deleted)</p>
+                    <div className="flex items-center gap-4">
+                      <PieChart className="w-10 h-10 text-cyan-500 opacity-80" />
+                      <p className="text-4xl font-black text-cyan-900 dark:text-cyan-100">{analyticsData.total_elections_conducted}</p>
+                    </div>
                   </div>
                 </div>
-                <div className="bg-green-50 dark:bg-green-900/20 p-5 sm:p-6 rounded-2xl border border-green-200 dark:border-green-800 shadow-sm">
-                  <p className="text-green-600 dark:text-green-400 text-sm font-bold uppercase tracking-wider mb-2">Voters Who Voted</p>
-                  <div className="flex items-center gap-4">
-                    <Activity className="w-10 h-10 text-green-500 opacity-80" />
-                    <p className="text-4xl font-black text-green-900 dark:text-green-100">{analyticsData.voters_who_voted}</p>
-                  </div>
-                </div>
-                <div className="bg-purple-50 dark:bg-purple-900/20 p-5 sm:p-6 rounded-2xl border border-purple-200 dark:border-purple-800 shadow-sm">
-                  <p className="text-purple-600 dark:text-purple-400 text-sm font-bold uppercase tracking-wider mb-2">Total Ballots Cast</p>
-                  <div className="flex items-center gap-4">
-                    <Vote className="w-10 h-10 text-purple-500 opacity-80" />
-                    <p className="text-4xl font-black text-purple-900 dark:text-purple-100">{analyticsData.total_ballots_cast}</p>
-                  </div>
-                </div>
-                <div className="bg-amber-50 dark:bg-amber-900/20 p-5 sm:p-6 rounded-2xl border border-amber-200 dark:border-amber-800 shadow-sm">
-                  <p className="text-amber-600 dark:text-amber-400 text-sm font-bold uppercase tracking-wider mb-2">Current Elections</p>
-                  <div className="flex items-center gap-4">
-                    <Scale className="w-10 h-10 text-amber-500 opacity-80" />
-                    <p className="text-4xl font-black text-amber-900 dark:text-amber-100">{analyticsData.total_elections}</p>
-                  </div>
-                </div>
-                <div className="bg-cyan-50 dark:bg-cyan-900/20 p-5 sm:p-6 rounded-2xl border border-cyan-200 dark:border-cyan-800 shadow-sm col-span-1 sm:col-span-2">
-                  <p className="text-cyan-600 dark:text-cyan-400 text-sm font-bold uppercase tracking-wider mb-2">Total Elections Conducted (incl. deleted)</p>
-                  <div className="flex items-center gap-4">
-                    <PieChart className="w-10 h-10 text-cyan-500 opacity-80" />
-                    <p className="text-4xl font-black text-cyan-900 dark:text-cyan-100">{analyticsData.total_elections_conducted}</p>
-                  </div>
-                </div>
-                </div>
-              ) : (
-                <div className="text-center py-10 text-gray-500 bg-gray-100 dark:bg-gray-800/50 rounded-3xl border border-gray-300 dark:border-gray-700 border-dashed">
-                  Loading analytics data...
-                </div>
-              )}
-  
-              {/* NEW: Votes per Election Chart */}
-              {analyticsData && analyticsData.votes_per_election && analyticsData.votes_per_election.length > 0 && (
-                <div className="mt-10">
-                  <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
-                    <BarChart3 size={20} /> Vote Distribution (Last 10 Elections)
-                  </h3>
-                  <div className="bg-gray-50 dark:bg-gray-900/50 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 space-y-4">
-                    {analyticsData.votes_per_election.slice().reverse().map((election, index) => { // .slice().reverse() to show oldest first without mutating state
-                      const maxVotes = Math.max(...analyticsData.votes_per_election.map(e => e.votes), 1);
-                      const percentage = (election.votes / maxVotes) * 100;
-                      return (
-                        <div key={index} className="grid grid-cols-3 items-center gap-4 text-sm">
-                          <div className="font-semibold text-gray-600 dark:text-gray-400 truncate text-right">
-                            {election.title}
-                          </div>
-                          <div className="col-span-2 flex items-center gap-2">
-                            <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-6 overflow-hidden shadow-inner">
-                              <div className="bg-blue-500 h-full rounded-full transition-all duration-500" style={{ width: `${percentage}%` }}></div>
+    
+                {/* NEW: Votes per Election Chart */}
+                {analyticsData.votes_per_election && analyticsData.votes_per_election.length > 0 && (
+                  <div className="mt-10">
+                    <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
+                      <BarChart3 size={20} /> Vote Distribution (Last 10 Elections)
+                    </h3>
+                    <div className="bg-gray-50 dark:bg-gray-900/50 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 space-y-4">
+                      {analyticsData.votes_per_election.slice().reverse().map((election, index) => { // .slice().reverse() to show oldest first without mutating state
+                        const maxVotes = Math.max(...analyticsData.votes_per_election.map(e => e.votes), 1);
+                        const percentage = (election.votes / maxVotes) * 100;
+                        return (
+                          <div key={index} className="grid grid-cols-3 items-center gap-4 text-sm">
+                            <div className="font-semibold text-gray-600 dark:text-gray-400 truncate text-right">
+                              {election.title}
                             </div>
-                            <div className="w-12 text-left font-bold text-gray-800 dark:text-gray-200">{election.votes}</div>
+                            <div className="col-span-2 flex items-center gap-2">
+                              <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-6 overflow-hidden shadow-inner">
+                                <div className="bg-blue-500 h-full rounded-full transition-all duration-500" style={{ width: `${percentage}%` }}></div>
+                              </div>
+                              <div className="w-12 text-left font-bold text-gray-800 dark:text-gray-200">{election.votes}</div>
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </>
             ) : (
               <div className="text-center py-10 text-gray-500 bg-gray-100 dark:bg-gray-800/50 rounded-3xl border border-gray-300 dark:border-gray-700 border-dashed">
                 Loading analytics data...
               </div>
-            ){'}'}
+            )}
           </div>
         )}
 
@@ -1365,6 +1366,53 @@ const AdminDashboard = () => {
               >
                 Done
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ELECTION DETAILS MODAL */}
+      {electionDetailsModalOpen && selectedElectionDetails && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 p-6 sm:p-8 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-2xl relative my-8">
+            <button onClick={() => setElectionDetailsModalOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
+              <X size={24} />
+            </button>
+            <h3 className="text-xl sm:text-2xl font-bold mb-1 flex items-center gap-2">
+              <Vote className="text-blue-500" /> Election Details
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-6 font-semibold">{selectedElectionDetails.election.title}</p>
+            
+            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 -mr-2">
+              <h4 className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 pb-2">
+                Registered Candidates ({isLoadingDetails ? '...' : selectedElectionDetails.candidates.length})
+              </h4>
+              {isLoadingDetails ? (
+                <div className="text-center py-10 text-gray-500">Loading candidates...</div>
+              ) : selectedElectionDetails.candidates.length > 0 ? (
+                <div className="space-y-3">
+                  {selectedElectionDetails.candidates.map((c, index) => (
+                    <div key={c.db_id} className="flex items-center bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                      <div className="w-12 h-12 rounded-full overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex-shrink-0 shadow-sm flex items-center justify-center relative">
+                        {c.photo ? (
+                          <img src={c.photo} alt={c.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <User size={24} className="text-gray-400" />
+                        )}
+                        <div className="absolute -bottom-1 -right-1 bg-blue-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full font-bold border-2 border-white dark:border-gray-800">{index + 1}</div>
+                      </div>
+                      <div className="ml-4">
+                        <span className="font-bold text-gray-900 dark:text-white text-lg block">{c.name}</span>
+                        {c.party && <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{c.party}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-10 text-gray-500 bg-gray-100 dark:bg-gray-800/50 rounded-xl border border-gray-300 dark:border-gray-700 border-dashed">
+                  No candidates have been added to this election yet.
+                </div>
+              )}
             </div>
           </div>
         </div>
