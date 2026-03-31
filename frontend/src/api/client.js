@@ -1,8 +1,8 @@
 import axios from 'axios';
 
-// 1. Create a custom Axios instance pointing to the Vite Proxy
+// 1. Create a custom Axios instance
 const apiClient = axios.create({
-  baseURL: '/api', // Vite proxies this to your backend, bypassing Mixed Content errors!
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api', // Uses env var in production, /api in dev
   headers: {
     'Content-Type': 'application/json',
   },

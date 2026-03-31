@@ -1,6 +1,6 @@
 import { useState, useEffect, useContext } from 'react';
 import apiClient from '../../api/client';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import AuthContext from '../../context/AuthContext';
 import { Plus, Save, Users, Vote, ShieldAlert, Scale, RefreshCw, Sun, Moon, User, LogOut, AlertCircle, Activity, PieChart, Download, Trash2, Menu, X, Check, Rocket, Inbox, KeyRound, Copy, BarChart3, Eye, ClipboardList } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
@@ -39,9 +39,6 @@ const AdminDashboard = () => {
   const [tallyElectionId, setTallyElectionId] = useState(null);
   const [tallyResults, setTallyResults] = useState(null);
   const [auditResults, setAuditResults] = useState(null);
-  const [electionDetailsModalOpen, setElectionDetailsModalOpen] = useState(false);
-  const [selectedElectionDetails, setSelectedElectionDetails] = useState(null);
-  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
 
   const [profile, setProfile] = useState({ name: 'Loading...', email: 'Loading...', voter_id: 'Loading...' });
   const [avatar, setAvatar] = useState(null);
@@ -591,6 +588,9 @@ const AdminDashboard = () => {
         </div>
       </div>
       <div className="flex flex-col sm:flex-row w-full sm:w-auto gap-2 sm:gap-3">
+        <Link to={`/admin/election/${election.id}`} className="flex-1 sm:flex-none bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all active:scale-95 flex justify-center items-center gap-2">
+          <Eye size={16} /> Details
+        </Link>
         {election.status === 'setup' && (
           <button onClick={() => handlePublishElection(election.id)} className="flex-1 sm:flex-none bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow transition-all active:scale-95 flex justify-center items-center gap-2">
             <Rocket size={16} /> Go Live
@@ -1366,53 +1366,6 @@ const AdminDashboard = () => {
               >
                 Done
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ELECTION DETAILS MODAL */}
-      {electionDetailsModalOpen && selectedElectionDetails && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-gray-800 p-6 sm:p-8 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-2xl relative my-8">
-            <button onClick={() => setElectionDetailsModalOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
-              <X size={24} />
-            </button>
-            <h3 className="text-xl sm:text-2xl font-bold mb-1 flex items-center gap-2">
-              <Vote className="text-blue-500" /> Election Details
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-6 font-semibold">{selectedElectionDetails.election.title}</p>
-            
-            <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 -mr-2">
-              <h4 className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 pb-2">
-                Registered Candidates ({isLoadingDetails ? '...' : selectedElectionDetails.candidates.length})
-              </h4>
-              {isLoadingDetails ? (
-                <div className="text-center py-10 text-gray-500">Loading candidates...</div>
-              ) : selectedElectionDetails.candidates.length > 0 ? (
-                <div className="space-y-3">
-                  {selectedElectionDetails.candidates.map((c, index) => (
-                    <div key={c.db_id} className="flex items-center bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                      <div className="w-12 h-12 rounded-full overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex-shrink-0 shadow-sm flex items-center justify-center relative">
-                        {c.photo ? (
-                          <img src={c.photo} alt={c.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <User size={24} className="text-gray-400" />
-                        )}
-                        <div className="absolute -bottom-1 -right-1 bg-blue-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full font-bold border-2 border-white dark:border-gray-800">{index + 1}</div>
-                      </div>
-                      <div className="ml-4">
-                        <span className="font-bold text-gray-900 dark:text-white text-lg block">{c.name}</span>
-                        {c.party && <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{c.party}</span>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-10 text-gray-500 bg-gray-100 dark:bg-gray-800/50 rounded-xl border border-gray-300 dark:border-gray-700 border-dashed">
-                  No candidates have been added to this election yet.
-                </div>
-              )}
             </div>
           </div>
         </div>

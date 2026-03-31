@@ -468,6 +468,24 @@ def list_all_elections(db: Session = Depends(get_db), current_admin: str = Depen
         })
     return results
 
+@app.get("/admin/elections/{election_id}")
+def get_election_details(election_id: int, db: Session = Depends(get_db), current_admin: str = Depends(get_current_admin)):
+    election = db.query(models.Election).filter(models.Election.id == election_id).first()
+    if not election:
+        raise HTTPException(status_code=404, detail="Election not found")
+    
+    total_voters = db.query(models.Voter).filter(models.Voter.is_admin == False).count()
+    vote_count = db.query(models.VoteRecord).filter(models.VoteRecord.election_id == election.id).count()
+
+    return {
+        "id": election.id, "title": election.title, "is_active": election.is_active, "status": election.status,
+        "start_time": election.start_time.isoformat() if election.start_time else None,
+        "end_time": election.end_time.isoformat() if election.end_time else None,
+        "is_exclusive": election.is_exclusive,
+        "vote_count": vote_count,
+        "total_eligible": total_voters
+    }
+
 @app.get("/admin/voters-export/")
 def export_voters_csv(db: Session = Depends(get_db), current_admin: str = Depends(get_current_admin)):
     voters = db.query(models.Voter).filter(models.Voter.is_admin == False).order_by(models.Voter.id.desc()).all()
