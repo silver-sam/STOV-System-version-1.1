@@ -2,7 +2,8 @@ import { useState, useEffect, useContext } from 'react';
 import apiClient from '../../api/client';
 import { useNavigate } from 'react-router-dom';
 import AuthContext from '../../context/AuthContext';
-import { Plus, Save, Users, Vote, ShieldAlert, Scale, RefreshCw, Sun, Moon, User, LogOut, AlertCircle, Activity, PieChart, Download, Trash2, Menu, X, Check, Rocket, Inbox } from 'lucide-react';
+import { Plus, Save, Users, Vote, ShieldAlert, Scale, RefreshCw, Sun, Moon, User, LogOut, AlertCircle, Activity, PieChart, Download, Trash2, Menu, X, Check, Rocket, Inbox, KeyRound, Copy } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('analytics'); // 'analytics' | 'create' | 'tally' | 'profile'
@@ -15,6 +16,12 @@ const AdminDashboard = () => {
   // --- ANALYTICS STATE ---
   const [analyticsData, setAnalyticsData] = useState(null);
   const [resetVoterId, setResetVoterId] = useState('');
+  const [deleteVoterId, setDeleteVoterId] = useState('');
+
+  // --- MFA Reset Modal State ---
+  const [mfaResetModalOpen, setMfaResetModalOpen] = useState(false);
+  const [mfaResetData, setMfaResetData] = useState(null);
+  const [mfaResetCopied, setMfaResetCopied] = useState(false);
 
   // --- ELECTION CREATION STATE ---
   const [electionTitle, setElectionTitle] = useState('');
@@ -506,18 +513,37 @@ const AdminDashboard = () => {
     }
   };
 
-  // --- RESET VOTER ACCOUNT ---
-  const handleResetVoter = async (e) => {
-    e.preventDefault();
-    if (!window.confirm(`Are you sure you want to delete the account for '${resetVoterId}'?`)) return;
+  // --- RESET VOTER MFA ---
+  const handleResetMFA = async (voterId) => {
+    if (!voterId) {
+      setError('Voter ID is required to reset MFA.');
+      return;
+    }
+    if (!window.confirm(`Are you sure you want to reset the MFA for '${voterId}'? This will invalidate their current authenticator app.`)) return;
+    
     setMessage(''); setError('');
     try {
-      const res = await apiClient.delete(`/admin/voters/${encodeURIComponent(resetVoterId)}`);
+      const res = await apiClient.post('/admin/reset-mfa/', { voter_id: voterId });
+      setMfaResetData({ voter_id: voterId, ...res.data });
+      setMfaResetModalOpen(true);
+      setMessage(res.data.message); // Show success message in main view
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Failed to reset MFA.');
+    }
+  };
+
+  // --- DELETE VOTER ACCOUNT ---
+  const handleDeleteVoter = async (e) => {
+    e.preventDefault();
+    if (!window.confirm(`Are you sure you want to permanently delete the account for '${deleteVoterId}'? This cannot be undone.`)) return;
+    setMessage(''); setError('');
+    try {
+      const res = await apiClient.delete(`/admin/voters/${encodeURIComponent(deleteVoterId)}`);
       setMessage(res.data.message);
-      setResetVoterId('');
+      setDeleteVoterId('');
       fetchAnalytics();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to reset voter account.');
+      setError(err.response?.data?.detail || 'Failed to delete voter account.');
     }
   };
 
@@ -739,15 +765,15 @@ const AdminDashboard = () => {
               </div>
             )}
 
-            {/* DANGER ZONE: Reset Account */}
-            <div className="mt-10 bg-red-50 dark:bg-red-900/10 p-6 sm:p-8 rounded-3xl border border-red-200 dark:border-red-800/30 shadow-sm">
-              <h3 className="text-lg font-bold text-red-700 dark:text-red-400 mb-2 flex items-center gap-2">
-                <ShieldAlert size={20} /> Danger Zone: Reset Voter Account
+            {/* MFA Reset Section */}
+            <div className="mt-10 bg-blue-50 dark:bg-blue-900/10 p-6 sm:p-8 rounded-3xl border border-blue-200 dark:border-blue-800/30 shadow-sm">
+              <h3 className="text-lg font-bold text-blue-700 dark:text-blue-400 mb-2 flex items-center gap-2">
+                <KeyRound size={20} /> Reset User MFA
               </h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                If a student has lost access to their Authenticator App (MFA), you can delete their account here. They will need to re-register with their face and Student ID. Their past voting records will be preserved to prevent double-voting.
+                If a user has lost their authenticator app, you can generate a new MFA secret for them here. Their password and voting history will remain unchanged.
               </p>
-              <form onSubmit={handleResetVoter} className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+              <form onSubmit={(e) => { e.preventDefault(); handleResetMFA(resetVoterId); }} className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
                 <div className="flex-1 w-full max-w-md">
                   <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Voter ID</label>
                   <input 
@@ -756,6 +782,32 @@ const AdminDashboard = () => {
                     placeholder="e.g. EMP-1234, NAT-5678, or Student ID"
                     value={resetVoterId}
                     onChange={(e) => setResetVoterId(e.target.value)}
+                    className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl py-3 px-4 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm font-mono"
+                  />
+                </div>
+                <button type="submit" className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl font-bold shadow transition-all active:scale-95 flex items-center justify-center gap-2">
+                  <RefreshCw size={20} /> Reset MFA
+                </button>
+              </form>
+            </div>
+
+            {/* DANGER ZONE: Delete Account */}
+            <div className="mt-10 bg-red-50 dark:bg-red-900/10 p-6 sm:p-8 rounded-3xl border border-red-200 dark:border-red-800/30 shadow-sm">
+              <h3 className="text-lg font-bold text-red-700 dark:text-red-400 mb-2 flex items-center gap-2">
+                <ShieldAlert size={20} /> Danger Zone: Delete Voter Account
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                This will <strong className="text-red-600 dark:text-red-400">permanently delete</strong> a user's account, including their face model and credentials. They will need to re-register. Use this as a last resort.
+              </p>
+              <form onSubmit={handleDeleteVoter} className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+                <div className="flex-1 w-full max-w-md">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Voter ID</label>
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="e.g. EMP-1234, NAT-5678, or Student ID"
+                    value={deleteVoterId}
+                    onChange={(e) => setDeleteVoterId(e.target.value)}
                     className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl py-3 px-4 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 outline-none transition-all shadow-sm font-mono"
                   />
                 </div>
@@ -1146,8 +1198,11 @@ const AdminDashboard = () => {
                     <div className="flex flex-col sm:flex-row items-center gap-2">
                       {ticket.status === 'pending' && (
                         <>
-                          <button onClick={() => { setResetVoterId(ticket.voter_id); setActiveTab('analytics'); }} className="w-full sm:w-auto bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-700 dark:text-red-400 px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all active:scale-95 flex items-center justify-center gap-2">
-                            <Trash2 size={16} /> Reset User
+                          <button onClick={() => handleResetMFA(ticket.voter_id)} className="w-full sm:w-auto bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-400 px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all active:scale-95 flex items-center justify-center gap-2">
+                            <KeyRound size={16} /> Reset MFA
+                          </button>
+                          <button onClick={() => { setDeleteVoterId(ticket.voter_id); setActiveTab('analytics'); }} className="w-full sm:w-auto bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-700 dark:text-red-400 px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all active:scale-95 flex items-center justify-center gap-2">
+                            <Trash2 size={16} /> Delete User
                           </button>
                           <button onClick={() => handleResolveTicket(ticket.id)} className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow transition-all active:scale-95 flex items-center justify-center gap-2">
                             <Check size={16} /> Mark Resolved
@@ -1205,6 +1260,57 @@ const AdminDashboard = () => {
               </button>
               <button onClick={handleCropSave} className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg transition-all active:scale-95">
                 Save Image
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MFA RESET MODAL */}
+      {mfaResetModalOpen && mfaResetData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-gray-800 p-6 sm:p-8 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-md relative my-8">
+            <button onClick={() => { setMfaResetModalOpen(false); setMfaResetData(null); }} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
+              <X size={24} />
+            </button>
+            <h3 className="text-xl sm:text-2xl font-bold mb-2 flex items-center gap-2">
+              <KeyRound className="text-green-500" /> MFA Reset Successful
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+              MFA has been reset for voter <span className="font-bold font-mono text-gray-800 dark:text-gray-200">{mfaResetData.voter_id}</span>. Provide them with the new setup details below.
+            </p>
+
+            <div className="w-full flex flex-col items-center space-y-5">
+              <div className="text-center">
+                <div className="bg-white p-4 rounded-xl shadow-md dark:shadow-lg inline-block mb-3">
+                  <QRCodeSVG value={mfaResetData.new_mfa_qr_uri} size={180} />
+                </div>
+                <h3 className="text-lg font-bold text-emerald-600 dark:text-emerald-400">Scan this QR Code</h3>
+              </div>
+
+              <div className="w-full bg-gray-100 dark:bg-gray-700 p-4 rounded-xl border border-gray-300 dark:border-gray-600 relative text-center">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">Or use Manual Entry Code</p>
+                <p className="font-mono text-lg font-bold text-amber-600 dark:text-amber-400 tracking-widest break-all">
+                  {mfaResetData.new_mfa_setup_key}
+                </p>
+                <button 
+                  onClick={() => {
+                    navigator.clipboard.writeText(mfaResetData.new_mfa_setup_key);
+                    setMfaResetCopied(true);
+                    setTimeout(() => setMfaResetCopied(false), 2000);
+                  }}
+                  className="absolute top-2 right-2 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors p-2"
+                  title="Copy to clipboard"
+                >
+                  {mfaResetCopied ? <Check size={20} className="text-green-400" /> : <Copy size={20} />}
+                </button>
+              </div>
+
+              <button
+                onClick={() => { setMfaResetModalOpen(false); setMfaResetData(null); }}
+                className="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg transition-all duration-200 active:scale-95"
+              >
+                Done
               </button>
             </div>
           </div>

@@ -155,10 +155,20 @@ const Login = () => {
 
         const video = supportVideoRef.current;
         const canvas = supportCanvasRef.current;
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+        let targetWidth = video.videoWidth;
+        let targetHeight = video.videoHeight;
+        const maxDim = 640;
+        
+        if (Math.max(targetWidth, targetHeight) > maxDim) {
+          const scale = maxDim / Math.max(targetWidth, targetHeight);
+          targetWidth = Math.round(targetWidth * scale);
+          targetHeight = Math.round(targetHeight * scale);
+        }
+        
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
         const context = canvas.getContext('2d');
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        context.drawImage(video, 0, 0, targetWidth, targetHeight);
         const frame = canvas.toDataURL('image/jpeg', 0.5);
 
         try {
@@ -179,8 +189,10 @@ const Login = () => {
                 }
             }
         } catch (err) {
+            console.error("Support modal face detection poll failed:", err);
+            const detail = err.response?.data?.detail || 'Scanning stream...';
             setSupportFaceDetected(false);
-            setSupportFaceFeedback('Scanning stream...');
+            setSupportFaceFeedback(detail);
         } finally {
             supportAutoDetectRef.current = false;
             if (supportCameraActive && !supportIsVerifying && !supportHasBlinked) {
@@ -207,9 +219,19 @@ const Login = () => {
     if (supportVideoRef.current && supportCameraActive) {
         const video = supportVideoRef.current;
         const canvas = supportCanvasRef.current;
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+        let targetWidth = video.videoWidth;
+        let targetHeight = video.videoHeight;
+        const maxDim = 640;
+        
+        if (Math.max(targetWidth, targetHeight) > maxDim) {
+          const scale = maxDim / Math.max(targetWidth, targetHeight);
+          targetWidth = Math.round(targetWidth * scale);
+          targetHeight = Math.round(targetHeight * scale);
+        }
+        
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0, targetWidth, targetHeight);
         faceImageBase64 = canvas.toDataURL('image/jpeg', 0.8);
     }
 
@@ -372,9 +394,9 @@ const Login = () => {
                   ) : (
                     <div className="flex flex-col items-center w-full bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-600 relative">
                       <p className={`mb-4 text-sm font-medium text-center transition-colors duration-300 ${supportFaceDetected ? 'text-green-600 dark:text-green-400 font-bold' : 'text-gray-600 dark:text-gray-400'}`}>{supportFaceFeedback}</p>
-                      <div className={`relative w-full max-w-sm mx-auto overflow-hidden rounded-lg border-2 bg-black aspect-video transition-all duration-500 ${supportFaceDetected ? 'border-green-500 shadow-md' : 'border-gray-300 dark:border-gray-600'}`}>
+                      <div className={`relative w-full max-w-sm mx-auto overflow-hidden rounded-lg border-2 bg-black aspect-video transition-all duration-500 ${supportFaceDetected ? 'border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.4)]' : 'border-gray-300 dark:border-gray-600 shadow-lg'}`}>
                         <video ref={supportVideoRef} autoPlay playsInline muted className="w-full h-full object-cover transform scale-x-[-1]" />
-                        <div className={`absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 h-3/4 aspect-square border-4 rounded-full pointer-events-none z-10 transition-all duration-500 ${supportFaceDetected ? 'border-solid border-green-500/80' : 'border-dashed border-blue-500/70 animate-pulse'}`}></div>
+                        <div className={`absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 h-3/4 aspect-square border-4 rounded-full pointer-events-none z-10 transition-all duration-500 ${supportFaceDetected ? 'border-solid border-green-500/80 scale-105' : 'border-dashed border-blue-500/70 animate-pulse'}`}></div>
                       </div>
                       <canvas ref={supportCanvasRef} className="hidden" />
                     </div>

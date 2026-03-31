@@ -152,8 +152,10 @@ const Register = () => {
         }
 
       } catch (err) {
+        console.error("Face detection poll failed:", err);
+        const detail = err.response?.data?.detail || 'Scanning stream...';
         setFaceDetected(false);
-        setFaceFeedback('Scanning stream...');
+        setFaceFeedback(detail);
       } finally {
         autoDetectRef.current = false;
         if (cameraActive && !isRegistering && !hasAutoSubmittedRef.current) {

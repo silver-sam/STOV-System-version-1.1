@@ -253,6 +253,20 @@ def tally_election(headers, election_id_arg=None):
     else:
         print("⚠️ AUDIT FAILED")
 
+def reset_mfa_for_user(headers, voter_id):
+    """Admin tool to reset a user's MFA."""
+    print(f"\n🔄 RESETTING MFA for user: {voter_id}")
+    resp = requests.post(f"{BASE_URL}/admin/reset-mfa/", json={"voter_id": voter_id}, headers=headers)
+    if resp.status_code != 200:
+        print(f"❌ MFA Reset Failed: {resp.text}")
+        sys.exit(1)
+    
+    data = resp.json()
+    print(f"✅ SUCCESS: {data['message']}")
+    print(f"   -> New Setup Key: {data['new_mfa_setup_key']}")
+    print(f"   -> New QR URI: {data['new_mfa_qr_uri']}")
+    print("\n👉 Admin should now provide this new setup key or QR code to the user.")
+
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--list":
         list_stored_elections()
@@ -264,7 +278,13 @@ if __name__ == "__main__":
 
     headers = get_admin_headers()
     
-    if len(sys.argv) > 1 and sys.argv[1] == "--tally":
+    if len(sys.argv) > 2 and sys.argv[1] == "--reset-mfa":
+        voter_to_reset = sys.argv[2]
+        if not voter_to_reset:
+            print("❌ Please provide a voter_id to reset. Usage: python test_admin.py --reset-mfa <VOTER_ID>")
+            sys.exit(1)
+        reset_mfa_for_user(headers, voter_to_reset)
+    elif len(sys.argv) > 1 and sys.argv[1] == "--tally":
         # Allow passing a specific ID: python test_admin.py --tally 5
         eid = sys.argv[2] if len(sys.argv) > 2 else None
         tally_election(headers, eid)

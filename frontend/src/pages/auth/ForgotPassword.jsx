@@ -85,10 +85,20 @@ const ForgotPassword = () => {
 
         const video = videoRef.current;
         const canvas = canvasRef.current;
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+        let targetWidth = video.videoWidth;
+        let targetHeight = video.videoHeight;
+        const maxDim = 640;
+        
+        if (Math.max(targetWidth, targetHeight) > maxDim) {
+          const scale = maxDim / Math.max(targetWidth, targetHeight);
+          targetWidth = Math.round(targetWidth * scale);
+          targetHeight = Math.round(targetHeight * scale);
+        }
+        
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
         const context = canvas.getContext('2d');
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        context.drawImage(video, 0, 0, targetWidth, targetHeight);
         const frame = canvas.toDataURL('image/jpeg', 0.5);
 
         try {
@@ -109,8 +119,10 @@ const ForgotPassword = () => {
                 }
             }
         } catch (err) {
+            console.error("Face detection poll failed:", err);
+            const detail = err.response?.data?.detail || 'Scanning stream...';
             setFaceDetected(false);
-            setFaceFeedback('Scanning stream...');
+            setFaceFeedback(detail);
         } finally {
             autoDetectRef.current = false;
             if (cameraActive && !isVerifying && !hasBlinked) {
@@ -144,9 +156,19 @@ const ForgotPassword = () => {
     if (videoRef.current && cameraActive) {
         const video = videoRef.current;
         const canvas = canvasRef.current;
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+        let targetWidth = video.videoWidth;
+        let targetHeight = video.videoHeight;
+        const maxDim = 640;
+        
+        if (Math.max(targetWidth, targetHeight) > maxDim) {
+          const scale = maxDim / Math.max(targetWidth, targetHeight);
+          targetWidth = Math.round(targetWidth * scale);
+          targetHeight = Math.round(targetHeight * scale);
+        }
+        
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0, targetWidth, targetHeight);
         faceImageBase64 = canvas.toDataURL('image/jpeg', 0.8);
     }
 

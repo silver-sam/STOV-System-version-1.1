@@ -150,6 +150,7 @@ class AvatarUpdate(BaseModel):
 class TicketCreate(BaseModel):
     voter_id: str
     message: str
+    face_image: str
 
 class PasswordResetRequest(BaseModel):
     voter_id: str
@@ -166,12 +167,12 @@ class MFAResetRequest(BaseModel):
 # --- API ROUTES ---
 @app.post("/detect-face/")
 @limiter.limit("60/minute")
-def detect_face_presence(request: FaceDetectRequest, req: Request):
+def detect_face_presence(payload: FaceDetectRequest, request: Request):
     """Fast endpoint used purely for real-time UI feedback (bounding box check only)."""
     try:
         
         try:
-            img = utils.decode_base64_image(request.image)
+            img = utils.decode_base64_image(payload.image)
             if img is None:
                 return {"detected": False, "detail": "Invalid image format."}
         except ValueError:
@@ -184,20 +185,25 @@ def detect_face_presence(request: FaceDetectRequest, req: Request):
         if len(face_locations) == 1:
             # Liveness Detection: Check Eye Aspect Ratio (Blink)
             is_blinking = False
-            landmarks = face_recognition.face_landmarks(rgb_img, face_locations)
-            if landmarks:
-                def eye_aspect_ratio(eye):
-                    A = math.hypot(eye[1][0] - eye[5][0], eye[1][1] - eye[5][1])
-                    B = math.hypot(eye[2][0] - eye[4][0], eye[2][1] - eye[4][1])
-                    C = math.hypot(eye[0][0] - eye[3][0], eye[0][1] - eye[3][1])
-                    return (A + B) / (2.0 * C) if C != 0 else 0
-                
-                left_eye = landmarks[0].get('left_eye')
-                right_eye = landmarks[0].get('right_eye')
-                if left_eye and right_eye:
-                    ear = (eye_aspect_ratio(left_eye) + eye_aspect_ratio(right_eye)) / 2.0
-                    if ear < 0.28: # Increased threshold to make blink detection much easier
-                        is_blinking = True
+            try:
+                landmarks = face_recognition.face_landmarks(rgb_img, face_locations)
+                if landmarks:
+                    def eye_aspect_ratio(eye):
+                        A = math.hypot(eye[1][0] - eye[5][0], eye[1][1] - eye[5][1])
+                        B = math.hypot(eye[2][0] - eye[4][0], eye[2][1] - eye[4][1])
+                        C = math.hypot(eye[0][0] - eye[3][0], eye[0][1] - eye[3][1])
+                        return (A + B) / (2.0 * C) if C != 0 else 0
+                    
+                    left_eye = landmarks[0].get('left_eye')
+                    right_eye = landmarks[0].get('right_eye')
+                    if left_eye and right_eye:
+                        ear = (eye_aspect_ratio(left_eye) + eye_aspect_ratio(right_eye)) / 2.0
+                        if ear < 0.28: # Increased threshold to make blink detection much easier
+                            is_blinking = True
+            except Exception:
+                # If landmark detection fails, don't crash. Just skip blink detection.
+                # The UI will still show that a face is detected.
+                is_blinking = False
 
             return {"detected": True, "blinking": is_blinking, "detail": "Face detected! Please blink once to verify liveness."}
         elif len(face_locations) > 1:
@@ -205,7 +211,9 @@ def detect_face_presence(request: FaceDetectRequest, req: Request):
         else:
             return {"detected": False, "blinking": False, "detail": "No face detected. Please face the camera."}
     except Exception as e:
-        return {"detected": False, "blinking": False, "detail": "Scanning stream..."}
+        # This outer catch is now for more severe errors like image decoding.
+        # FOR DEBUGGING: Return the actual error to the frontend.
+        return {"detected": False, "blinking": False, "detail": f"Server Error: {str(e)}"}
 
 @app.post("/voters/")
 @limiter.limit("5/hour")
