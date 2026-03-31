@@ -24,6 +24,7 @@ import cv2
 import face_recognition
 import math
 import json
+from sqlalchemy import func
 
 from . import models
 from .database import engine, get_db
@@ -565,45 +566,43 @@ def resolve_support_ticket(ticket_id: int, db: Session = Depends(get_db), curren
 @limiter.limit("5/hour")
 async def forgot_password(req: PasswordResetRequest, request: Request, db: Session = Depends(get_db)):
     """Step 1 of Automated Reset: Claim Identity and Verify Face."""
+    # To prevent user enumeration, this endpoint will always raise a generic
+    # error if any part of the verification fails.
+    generic_error = HTTPException(status_code=401, detail="Invalid credentials or face verification failed.")
+
+    # 1. Check if user exists with the given ID and email.
     db_voter = db.query(models.Voter).filter(
         models.Voter.voter_id == req.voter_id,
         models.Voter.email == req.email
     ).first()
     
-    # Generic message to prevent bad actors from guessing valid email/ID combos.
-    # We will send the email only if the user exists, but the response is the same.
-    success_message = "If an account with that Voter ID and Email exists, and the face matches, a password reset link has been sent."
+    # 2. If user doesn't exist or has no face model, raise the generic error.
+    if not db_voter or not db_voter.face_encoding:
+        raise generic_error
 
-    if not db_voter:
-        return {"message": success_message}
-        
-    if not db_voter.face_encoding:
-        return {"message": success_message}
-
-    # --- FACE VERIFICATION ---
+    # 3. Perform face verification. If any step fails, raise the same generic error.
     try:
         img = utils.decode_base64_image(req.face_image)
         if img is None:
-            raise HTTPException(status_code=400, detail="Invalid image data.")
+            raise generic_error
             
         rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         face_encodings = face_recognition.face_encodings(rgb_img)
         
         if len(face_encodings) != 1:
-            raise HTTPException(status_code=400, detail="Could not clearly detect exactly one face.")
+            raise generic_error
             
         captured_encoding = face_encodings[0]
         reference_encoding = np.array(json.loads(db_voter.face_encoding))
         
         distances = face_recognition.face_distance([reference_encoding], captured_encoding)
         if distances[0] > 0.60: # Relaxed to industry standard
-            # Face doesn't match, but we still return the generic success message for security.
-            return {"message": success_message}
+            raise generic_error
             
     except Exception as e:
-        return {"message": success_message}
+        raise generic_error
 
-    # --- GENERATE SECURE TOKEN ---
+    # --- 4. IF ALL CHECKS PASS, GENERATE TOKEN AND SEND EMAIL ---
     reset_token = secrets.token_urlsafe(32)
     expires = datetime.utcnow() + timedelta(minutes=15)
     
@@ -615,7 +614,6 @@ async def forgot_password(req: PasswordResetRequest, request: Request, db: Sessi
     db.add(db_token)
     db.commit()
     
-    # --- SEND EMAIL ---
     # In production, get this from your config. For development, localhost:5173 is common for Vite.
     frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173") 
     reset_link = f"{frontend_url}/forgot-password?token={reset_token}"
@@ -637,7 +635,7 @@ async def forgot_password(req: PasswordResetRequest, request: Request, db: Sessi
     fm = FastMail(conf)
     await fm.send_message(message)
     
-    return {"message": success_message}
+    return {"message": "If an account with that Voter ID and Email exists, and the face matches, a password reset link has been sent."}
 
 @app.post("/reset-password/")
 @limiter.limit("5/hour")
@@ -691,16 +689,41 @@ def reset_user_mfa(req: MFAResetRequest, db: Session = Depends(get_db), current_
 def get_analytics(db: Session = Depends(get_db), current_admin: str = Depends(get_current_admin)):
     total_voters = db.query(models.Voter).filter(models.Voter.is_admin == False).count()
     voters_who_voted = db.query(models.VoteRecord.voter_id).distinct().count()
-    total_elections = db.query(models.Election).count()
+    total_elections = db.query(models.Election).count() # Current elections
     total_ballots = db.query(models.Ballot).count()
     pending_tickets = db.query(models.SupportTicket).filter(models.SupportTicket.status == "pending").count()
     
+    # Get total elections ever conducted (including deleted ones) from our persistent counter
+    total_elections_conducted_counter = db.query(models.SystemConfig).filter(models.SystemConfig.key == "total_elections_conducted").first()
+    # If the counter doesn't exist yet (e.g., before any new elections are created with the new logic),
+    # fall back to the current count of elections as a baseline.
+    total_elections_conducted = int(total_elections_conducted_counter.value) if total_elections_conducted_counter else total_elections
+
+    # New data for the chart: Vote counts for the 10 most recent elections
+    votes_per_election_query = db.query(
+        models.Election.title,
+        func.count(models.Ballot.id).label('vote_count')
+    ).outerjoin(
+        models.Ballot, models.Election.id == models.Ballot.election_id
+    ).group_by(
+        models.Election.id
+    ).order_by(
+        models.Election.id.desc()
+    ).limit(10).all()
+
+    votes_per_election = [
+        {"title": title, "votes": vote_count}
+        for title, vote_count in votes_per_election_query
+    ]
+
     return {
         "total_registered_voters": total_voters,
         "voters_who_voted": voters_who_voted,
         "total_elections": total_elections,
+        "total_elections_conducted": total_elections_conducted,
         "total_ballots_cast": total_ballots,
-        "pending_tickets": pending_tickets
+        "pending_tickets": pending_tickets,
+        "votes_per_election": votes_per_election
     }
 
 @app.post("/login/")
@@ -802,6 +825,17 @@ def create_election(election: ElectionCreate, db: Session = Depends(get_db), cur
         
     new_election = models.Election(**election_data)
     db.add(new_election)
+
+    # Increment the persistent counter for total elections ever conducted
+    counter = db.query(models.SystemConfig).filter(models.SystemConfig.key == "total_elections_conducted").first()
+    if counter:
+        counter.value = str(int(counter.value) + 1)
+    else:
+        # One-time migration: set initial count to current elections + 1 (for this new one)
+        current_election_count = db.query(models.Election).count()
+        counter = models.SystemConfig(key="total_elections_conducted", value=str(current_election_count + 1))
+        db.add(counter)
+
     db.commit()
     db.refresh(new_election)
     
@@ -847,12 +881,14 @@ def delete_election(election_id: int, db: Session = Depends(get_db), current_adm
     if not db_election:
         raise HTTPException(status_code=404, detail="Election not found.")
     
-    if db.query(models.Ballot).filter(models.Ballot.election_id == election_id).first():
-        raise HTTPException(status_code=400, detail="Cannot delete an election after voting has begun to protect audit integrity.")
+    if db_election.status == "active":
+        raise HTTPException(status_code=400, detail="Cannot delete an active election. Please close it first.")
         
     candidates = db.query(models.Candidate).filter(models.Candidate.election_id == election_id).all()
     photo_urls = [c.photo for c in candidates if c.photo]
         
+    db.query(models.VoteRecord).filter(models.VoteRecord.election_id == election_id).delete()
+    db.query(models.Ballot).filter(models.Ballot.election_id == election_id).delete()
     db.query(models.Candidate).filter(models.Candidate.election_id == election_id).delete()
     db.delete(db_election)
     db.commit()
@@ -1175,9 +1211,20 @@ def track_vote(receipt_id: str, db: Session = Depends(get_db)):
     if not ballot:
         # If the blockchain has it, but the DB doesn't, the DB was tampered with (vote deleted)!
         if on_chain_fingerprint and on_chain_fingerprint.strip() != "":
+            # NEW: Try to get election name from receipt ID
+            election_title = "an election"
+            try:
+                election_id_str = receipt_id.split('-')[0][1:]
+                election_id = int(election_id_str)
+                db_election = db.query(models.Election).filter(models.Election.id == election_id).first()
+                if db_election:
+                    election_title = f"'{db_election.title}'"
+            except:
+                pass # Keep generic title if parsing fails
+
             return {
                 "status": "TAMPERED",
-                "message": "CRITICAL ALERT: Your vote was securely anchored to the blockchain, but it has been DELETED from the main database! The system has been compromised."
+                "message": f"CRITICAL ALERT: Your vote for {election_title} was securely anchored to the blockchain, but it has been DELETED from the main database! The system has been compromised."
             }
         # If neither has it, it's just a typo.
         raise HTTPException(status_code=404, detail="Tracking ID not found anywhere in the system. No record exists in the database or on the blockchain. Please check for typos.")
@@ -1193,16 +1240,24 @@ def track_vote(receipt_id: str, db: Session = Depends(get_db)):
             return {"status": "FAILED", "message": "The transaction failed or is still pending on the blockchain."}
 
         if on_chain_fingerprint == current_fingerprint:
+            # NEW: Get election title for a more descriptive message
+            db_election = db.query(models.Election).filter(models.Election.id == ballot.election_id).first()
+            election_title = db_election.title if db_election else "this election"
+            
             return {
                 "status": "VERIFIED",
                 "election_id": ballot.election_id,
                 "timestamp": ballot.timestamp.replace(tzinfo=timezone.utc).isoformat() if ballot.timestamp else None,
-                "message": "Your vote is cryptographically verified and securely anchored to the blockchain. It has not been tampered with."
+                "message": f"Your vote for '{election_title}' is cryptographically verified and securely anchored to the blockchain. It has not been tampered with."
             }
         else:
+            # NEW: Get election title for a more descriptive message
+            db_election = db.query(models.Election).filter(models.Election.id == ballot.election_id).first()
+            election_title = db_election.title if db_election else "this election"
+
             return {
                 "status": "TAMPERED",
-                "message": "CRITICAL ALERT: The database record does not match the permanent blockchain fingerprint! This vote has been tampered with."
+                "message": f"CRITICAL ALERT: The database record for your vote in '{election_title}' does not match the permanent blockchain fingerprint! This vote has been tampered with."
             }
     except Exception as e:
         return {"status": "ERROR", "message": f"Could not establish a connection to the blockchain: {str(e)}"}

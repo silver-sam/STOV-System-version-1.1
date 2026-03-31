@@ -2,7 +2,7 @@ import { useState, useEffect, useContext } from 'react';
 import apiClient from '../../api/client';
 import { useNavigate } from 'react-router-dom';
 import AuthContext from '../../context/AuthContext';
-import { Plus, Save, Users, Vote, ShieldAlert, Scale, RefreshCw, Sun, Moon, User, LogOut, AlertCircle, Activity, PieChart, Download, Trash2, Menu, X, Check, Rocket, Inbox, KeyRound, Copy } from 'lucide-react';
+import { Plus, Save, Users, Vote, ShieldAlert, Scale, RefreshCw, Sun, Moon, User, LogOut, AlertCircle, Activity, PieChart, Download, Trash2, Menu, X, Check, Rocket, Inbox, KeyRound, Copy, BarChart3 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
 const AdminDashboard = () => {
@@ -666,6 +666,12 @@ const AdminDashboard = () => {
             <Activity size={20} /> System Analytics
           </button>
           <button 
+            onClick={() => { setActiveTab('userManagement'); setIsMobileMenuOpen(false); }}
+            className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'userManagement' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'}`}
+          >
+            <Users size={20} /> User Management
+          </button>
+          <button 
             onClick={() => { setActiveTab('create'); setIsMobileMenuOpen(false); }}
             className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold transition-all duration-200 ${activeTab === 'create' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'}`}
           >
@@ -752,70 +758,58 @@ const AdminDashboard = () => {
                   </div>
                 </div>
                 <div className="bg-amber-50 dark:bg-amber-900/20 p-5 sm:p-6 rounded-2xl border border-amber-200 dark:border-amber-800 shadow-sm">
-                  <p className="text-amber-600 dark:text-amber-400 text-sm font-bold uppercase tracking-wider mb-2">Total Elections</p>
+                  <p className="text-amber-600 dark:text-amber-400 text-sm font-bold uppercase tracking-wider mb-2">Current Elections</p>
                   <div className="flex items-center gap-4">
                     <Scale className="w-10 h-10 text-amber-500 opacity-80" />
                     <p className="text-4xl font-black text-amber-900 dark:text-amber-100">{analyticsData.total_elections}</p>
                   </div>
                 </div>
-              </div>
+                <div className="bg-cyan-50 dark:bg-cyan-900/20 p-5 sm:p-6 rounded-2xl border border-cyan-200 dark:border-cyan-800 shadow-sm col-span-1 sm:col-span-2">
+                  <p className="text-cyan-600 dark:text-cyan-400 text-sm font-bold uppercase tracking-wider mb-2">Total Elections Conducted (incl. deleted)</p>
+                  <div className="flex items-center gap-4">
+                    <PieChart className="w-10 h-10 text-cyan-500 opacity-80" />
+                    <p className="text-4xl font-black text-cyan-900 dark:text-cyan-100">{analyticsData.total_elections_conducted}</p>
+                  </div>
+                </div>
+                </div>
+              ) : (
+                <div className="text-center py-10 text-gray-500 bg-gray-100 dark:bg-gray-800/50 rounded-3xl border border-gray-300 dark:border-gray-700 border-dashed">
+                  Loading analytics data...
+                </div>
+              )}
+  
+              {/* NEW: Votes per Election Chart */}
+              {analyticsData && analyticsData.votes_per_election && analyticsData.votes_per_election.length > 0 && (
+                <div className="mt-10">
+                  <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
+                    <BarChart3 size={20} /> Vote Distribution (Last 10 Elections)
+                  </h3>
+                  <div className="bg-gray-50 dark:bg-gray-900/50 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 space-y-4">
+                    {analyticsData.votes_per_election.slice().reverse().map((election, index) => { // .slice().reverse() to show oldest first without mutating state
+                      const maxVotes = Math.max(...analyticsData.votes_per_election.map(e => e.votes), 1);
+                      const percentage = (election.votes / maxVotes) * 100;
+                      return (
+                        <div key={index} className="grid grid-cols-3 items-center gap-4 text-sm">
+                          <div className="font-semibold text-gray-600 dark:text-gray-400 truncate text-right">
+                            {election.title}
+                          </div>
+                          <div className="col-span-2 flex items-center gap-2">
+                            <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-6 overflow-hidden shadow-inner">
+                              <div className="bg-blue-500 h-full rounded-full transition-all duration-500" style={{ width: `${percentage}%` }}></div>
+                            </div>
+                            <div className="w-12 text-left font-bold text-gray-800 dark:text-gray-200">{election.votes}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             ) : (
               <div className="text-center py-10 text-gray-500 bg-gray-100 dark:bg-gray-800/50 rounded-3xl border border-gray-300 dark:border-gray-700 border-dashed">
                 Loading analytics data...
               </div>
-            )}
-
-            {/* MFA Reset Section */}
-            <div className="mt-10 bg-blue-50 dark:bg-blue-900/10 p-6 sm:p-8 rounded-3xl border border-blue-200 dark:border-blue-800/30 shadow-sm">
-              <h3 className="text-lg font-bold text-blue-700 dark:text-blue-400 mb-2 flex items-center gap-2">
-                <KeyRound size={20} /> Reset User MFA
-              </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                If a user has lost their authenticator app, you can generate a new MFA secret for them here. Their password and voting history will remain unchanged.
-              </p>
-              <form onSubmit={(e) => { e.preventDefault(); handleResetMFA(resetVoterId); }} className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
-                <div className="flex-1 w-full max-w-md">
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Voter ID</label>
-                  <input 
-                    type="text" 
-                    required
-                    placeholder="e.g. EMP-1234, NAT-5678, or Student ID"
-                    value={resetVoterId}
-                    onChange={(e) => setResetVoterId(e.target.value)}
-                    className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl py-3 px-4 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm font-mono"
-                  />
-                </div>
-                <button type="submit" className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl font-bold shadow transition-all active:scale-95 flex items-center justify-center gap-2">
-                  <RefreshCw size={20} /> Reset MFA
-                </button>
-              </form>
-            </div>
-
-            {/* DANGER ZONE: Delete Account */}
-            <div className="mt-10 bg-red-50 dark:bg-red-900/10 p-6 sm:p-8 rounded-3xl border border-red-200 dark:border-red-800/30 shadow-sm">
-              <h3 className="text-lg font-bold text-red-700 dark:text-red-400 mb-2 flex items-center gap-2">
-                <ShieldAlert size={20} /> Danger Zone: Delete Voter Account
-              </h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                This will <strong className="text-red-600 dark:text-red-400">permanently delete</strong> a user's account, including their face model and credentials. They will need to re-register. Use this as a last resort.
-              </p>
-              <form onSubmit={handleDeleteVoter} className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
-                <div className="flex-1 w-full max-w-md">
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Voter ID</label>
-                  <input 
-                    type="text" 
-                    required
-                    placeholder="e.g. EMP-1234, NAT-5678, or Student ID"
-                    value={deleteVoterId}
-                    onChange={(e) => setDeleteVoterId(e.target.value)}
-                    className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl py-3 px-4 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 outline-none transition-all shadow-sm font-mono"
-                  />
-                </div>
-                <button type="submit" className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-xl font-bold shadow transition-all active:scale-95 flex items-center justify-center gap-2">
-                  <Trash2 size={20} /> Delete Account
-                </button>
-              </form>
-            </div>
+            ){'}'}
           </div>
         )}
 
@@ -1201,7 +1195,7 @@ const AdminDashboard = () => {
                           <button onClick={() => handleResetMFA(ticket.voter_id)} className="w-full sm:w-auto bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-400 px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all active:scale-95 flex items-center justify-center gap-2">
                             <KeyRound size={16} /> Reset MFA
                           </button>
-                          <button onClick={() => { setDeleteVoterId(ticket.voter_id); setActiveTab('analytics'); }} className="w-full sm:w-auto bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-700 dark:text-red-400 px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all active:scale-95 flex items-center justify-center gap-2">
+                          <button onClick={() => { setDeleteVoterId(ticket.voter_id); setActiveTab('userManagement'); }} className="w-full sm:w-auto bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-700 dark:text-red-400 px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all active:scale-95 flex items-center justify-center gap-2">
                             <Trash2 size={16} /> Delete User
                           </button>
                           <button onClick={() => handleResolveTicket(ticket.id)} className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow transition-all active:scale-95 flex items-center justify-center gap-2">
@@ -1214,6 +1208,65 @@ const AdminDashboard = () => {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* NEW TAB: USER MANAGEMENT */}
+        {activeTab === 'userManagement' && (
+          <div className="bg-white dark:bg-gray-800 p-6 sm:p-8 rounded-3xl border border-gray-200 dark:border-gray-700 shadow-xl dark:shadow-2xl">
+            <h2 className="text-xl sm:text-2xl font-bold mb-8">User Account Management</h2>
+
+            {/* MFA Reset Section */}
+            <div className="bg-blue-50 dark:bg-blue-900/10 p-6 sm:p-8 rounded-3xl border border-blue-200 dark:border-blue-800/30 shadow-sm">
+              <h3 className="text-lg font-bold text-blue-700 dark:text-blue-400 mb-2 flex items-center gap-2">
+                <KeyRound size={20} /> Reset User MFA
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                If a user has lost their authenticator app, you can generate a new MFA secret for them here. Their password and voting history will remain unchanged.
+              </p>
+              <form onSubmit={(e) => { e.preventDefault(); handleResetMFA(resetVoterId); }} className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+                <div className="flex-1 w-full max-w-md">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Voter ID</label>
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="e.g. EMP-1234, NAT-5678, or Student ID"
+                    value={resetVoterId}
+                    onChange={(e) => setResetVoterId(e.target.value)}
+                    className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl py-3 px-4 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm font-mono"
+                  />
+                </div>
+                <button type="submit" className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl font-bold shadow transition-all active:scale-95 flex items-center justify-center gap-2">
+                  <RefreshCw size={20} /> Reset MFA
+                </button>
+              </form>
+            </div>
+
+            {/* DANGER ZONE: Delete Account */}
+            <div className="mt-10 bg-red-50 dark:bg-red-900/10 p-6 sm:p-8 rounded-3xl border border-red-200 dark:border-red-800/30 shadow-sm">
+              <h3 className="text-lg font-bold text-red-700 dark:text-red-400 mb-2 flex items-center gap-2">
+                <ShieldAlert size={20} /> Danger Zone: Delete Voter Account
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                This will <strong className="text-red-600 dark:text-red-400">permanently delete</strong> a user's account, including their face model and credentials. They will need to re-register. Use this as a last resort.
+              </p>
+              <form onSubmit={handleDeleteVoter} className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+                <div className="flex-1 w-full max-w-md">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Voter ID</label>
+                  <input 
+                    type="text" 
+                    required
+                    placeholder="e.g. EMP-1234, NAT-5678, or Student ID"
+                    value={deleteVoterId}
+                    onChange={(e) => setDeleteVoterId(e.target.value)}
+                    className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl py-3 px-4 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 outline-none transition-all shadow-sm font-mono"
+                  />
+                </div>
+                <button type="submit" className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-xl font-bold shadow transition-all active:scale-95 flex items-center justify-center gap-2">
+                  <Trash2 size={20} /> Delete Account
+                </button>
+              </form>
+            </div>
           </div>
         )}
 
