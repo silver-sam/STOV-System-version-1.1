@@ -51,7 +51,20 @@ const Login = () => {
       await apiClient.post('/login/', { voter_id: voterId, password });
       setStep(2); // Move to MFA step
     } catch (err) {
-      setError(err.response?.data?.detail || 'Login failed');
+      console.error("Login Error Details:", err);
+      if (err.response?.data) {
+        if (typeof err.response.data === 'string') {
+          setError(`Server Error (500): The backend crashed. Please check your FastAPI terminal logs.`);
+        } else if (err.response.data.detail) {
+          const detail = err.response.data.detail;
+          if (Array.isArray(detail)) setError(detail.map(d => `${d.loc[d.loc.length-1]}: ${d.msg}`).join(', '));
+          else setError(detail);
+        } else {
+          setError('Login failed due to an unknown server error.');
+        }
+      } else {
+        setError(err.message || 'Login failed. Network error.');
+      }
     }
   };
 
@@ -76,7 +89,20 @@ const Login = () => {
         navigate('/dashboard'); 
       }
     } catch (err) {
-      setError(err.response?.data?.detail || 'Invalid MFA Code');
+      console.error("MFA Error Details:", err);
+      if (err.response?.data) {
+        if (typeof err.response.data === 'string') {
+          setError(`Server Error (500): The backend crashed. Please check your FastAPI terminal logs.`);
+        } else if (err.response.data.detail) {
+          const detail = err.response.data.detail;
+          if (Array.isArray(detail)) setError(detail.map(d => `${d.loc[d.loc.length-1]}: ${d.msg}`).join(', '));
+          else setError(detail);
+        } else {
+          setError('Invalid MFA Code or unknown server error.');
+        }
+      } else {
+        setError(err.message || 'MFA verification failed. Network error.');
+      }
     }
   };
 

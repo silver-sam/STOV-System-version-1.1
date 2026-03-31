@@ -1,0 +1,23 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Environments
+.env
+.venv
+env/
+venv/
+
+# User-generated content
+uploads/
+
+# Frontend dependencies
+node_modules/
+
+# IDE / Editor specific
+.vscode/
+.idea/

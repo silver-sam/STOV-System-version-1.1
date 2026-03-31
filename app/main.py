@@ -12,6 +12,7 @@ from datetime import timedelta, datetime, timezone
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 from pydantic import EmailStr
 import pyotp
+from fastapi.security import OAuth2PasswordRequestForm
 import hashlib
 import uuid
 import os
@@ -45,7 +46,7 @@ except ImportError:
 conf = ConnectionConfig(
     MAIL_USERNAME = os.getenv("MAIL_USERNAME", "your-email@example.com"),
     MAIL_PASSWORD = os.getenv("MAIL_PASSWORD", "your-email-password"),
-    MAIL_FROM = EmailStr(os.getenv("MAIL_FROM", "AegisElect <your-email@example.com>")),
+    MAIL_FROM = os.getenv("MAIL_FROM", "your-email@example.com"),
     MAIL_PORT = int(os.getenv("MAIL_PORT", 587)),
     MAIL_SERVER = os.getenv("MAIL_SERVER", "smtp.gmail.com"),
     MAIL_STARTTLS = os.getenv("MAIL_STARTTLS", "True").lower() in ('true', '1', 't'),
