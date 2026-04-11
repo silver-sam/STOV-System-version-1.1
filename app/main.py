@@ -601,9 +601,6 @@ def resolve_support_ticket(ticket_id: int, db: Session = Depends(get_db), curren
 @limiter.limit("5/hour")
 async def forgot_password(req: PasswordResetRequest, request: Request, db: Session = Depends(get_db)):
     """Step 1 of Automated Reset: Claim Identity and Verify Face."""
-    # To prevent user enumeration, this endpoint will always raise a generic
-    # error if any part of the verification fails.
-    generic_error = HTTPException(status_code=401, detail="Invalid credentials or face verification failed.")
 
     # 1. Check if user exists with the given ID and email.
     db_voter = db.query(models.Voter).filter(
@@ -611,33 +608,37 @@ async def forgot_password(req: PasswordResetRequest, request: Request, db: Sessi
         models.Voter.email == req.email
     ).first()
     
-    # 2. If user doesn't exist or has no face model, raise the generic error.
     if not db_voter or not db_voter.face_encoding:
-        raise generic_error
+        raise HTTPException(status_code=404, detail="No account found with this Voter ID and Email combination.")
+        
+    if not db_voter.face_encoding:
+        raise HTTPException(status_code=400, detail="This account does not have a registered face model to verify against.")
 
-    # 3. Perform face verification. If any step fails, raise the same generic error.
+    # 2. Perform detailed face verification.
     try:
         img = utils.decode_base64_image(req.face_image)
         if img is None:
-            raise generic_error
+            raise HTTPException(status_code=400, detail="Invalid image format.")
             
         rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         face_encodings = face_recognition.face_encodings(rgb_img)
         
         if len(face_encodings) != 1:
-            raise generic_error
+            raise HTTPException(status_code=400, detail="Could not clearly detect exactly one face. Please ensure good lighting.")
             
         captured_encoding = face_encodings[0]
         reference_encoding = np.array(json.loads(db_voter.face_encoding))
         
         distances = face_recognition.face_distance([reference_encoding], captured_encoding)
-        if distances[0] > 0.60: # Relaxed to industry standard
-            raise generic_error
+        if distances[0] > 0.60: 
+            raise HTTPException(status_code=403, detail=f"Face verification failed. (Match score: {distances[0]:.2f} exceeds threshold). Ensure you look the same as your registration photo.")
             
+    except HTTPException as e:
+        raise e
     except Exception as e:
-        raise generic_error
+        raise HTTPException(status_code=500, detail=f"Face processing error: {str(e)}")
 
-    # --- 4. IF ALL CHECKS PASS, GENERATE TOKEN AND SEND EMAIL ---
+    # --- 3. IF ALL CHECKS PASS, GENERATE TOKEN AND SEND EMAIL ---
     reset_token = secrets.token_urlsafe(32)
     expires = datetime.utcnow() + timedelta(minutes=15)
     
@@ -667,10 +668,18 @@ async def forgot_password(req: PasswordResetRequest, request: Request, db: Sessi
         body=html_body,
         subtype=MessageType.html
     )
-    fm = FastMail(conf)
-    await fm.send_message(message)
     
-    return {"message": "If an account with that Voter ID and Email exists, and the face matches, a password reset link has been sent."}
+    fm = FastMail(conf)
+    try:
+        await fm.send_message(message)
+        return {"message": "Identity verified! A password reset link has been sent to your email."}
+    except Exception as e:
+        print(f"WARNING: Email failed to send. {str(e)}")
+        # Developer Bypass: Return the token directly if SMTP is not configured yet
+        return {
+            "message": "Identity verified! (Warning: SMTP email not configured. Automatically redirecting to reset screen...).",
+            "fallback_token": reset_token
+        }
 
 @app.post("/reset-password/")
 @limiter.limit("5/hour")

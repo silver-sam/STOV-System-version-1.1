@@ -185,7 +185,14 @@ const ForgotPassword = () => {
       // The token is now emailed. We just show the success message.
       setStatus(response.data.message);
       stopCamera();
-      // The user will now need to click the link in their email.
+      
+      // Developer bypass for unconfigured SMTP
+      if (response.data.fallback_token) {
+        setTimeout(() => {
+          setResetToken(response.data.fallback_token);
+          setStep(2);
+        }, 3000);
+      }
     } catch (err) {
       setStatus('');
       setError(err.response?.data?.detail || 'Identity verification failed. Please try again.');
