@@ -148,7 +148,7 @@ const ForgotPassword = () => {
     if (cameraActive && !capturedFace) {
         autoDetectRef.current = false;
         timeoutId = setTimeout(pollFace, 300);
-    } else {
+    } else if (!cameraActive) {
         setFaceDetected(false);
         setHasBlinked(false);
         setCapturedFace(null);
