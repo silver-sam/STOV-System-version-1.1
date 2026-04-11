@@ -33,6 +33,8 @@ const AdminDashboard = () => {
   const [candidateParty, setCandidateParty] = useState('');
   const [candidatePhoto, setCandidatePhoto] = useState(null);
   const [currentCandidates, setCurrentCandidates] = useState([]);
+  const [candidateMessage, setCandidateMessage] = useState('');
+  const [candidateError, setCandidateError] = useState('');
 
   // --- TALLY & AUDIT STATE ---
   const [allElections, setAllElections] = useState([]);
@@ -143,7 +145,34 @@ const AdminDashboard = () => {
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => setCandidatePhoto(reader.result);
+      reader.onloadend = () => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          // Compress and standardize the image format to JPEG to avoid WebP/PNG backend errors
+          const MAX_DIM = 800;
+          let width = img.width;
+          let height = img.height;
+          
+          if (width > height && width > MAX_DIM) {
+            height *= MAX_DIM / width;
+            width = MAX_DIM;
+          } else if (height > MAX_DIM) {
+            width *= MAX_DIM / height;
+            height = MAX_DIM;
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#FFFFFF'; // Add white background in case of transparent images
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          setCandidatePhoto(canvas.toDataURL('image/jpeg', 0.8));
+        };
+        img.src = reader.result;
+      };
       reader.readAsDataURL(file);
     }
   };
@@ -162,6 +191,7 @@ const AdminDashboard = () => {
   const handleAddCandidate = async (e) => {
     e.preventDefault();
     if (!createdElection) return;
+    setCandidateMessage(''); setCandidateError('');
     try {
       await apiClient.post('/candidates/', { 
         election_id: createdElection.election_id, 
@@ -169,19 +199,23 @@ const AdminDashboard = () => {
         party: candidateParty,
         photo: candidatePhoto
       });
-      setMessage(`Candidate '${candidateName}' added successfully.`);
+      setCandidateMessage(`Candidate '${candidateName}' added successfully.`);
       setCandidateName('');
       setCandidateParty('');
       setCandidatePhoto(null);
+      const fileInput = document.getElementById('candidatePhotoInput');
+      if (fileInput) fileInput.value = '';
       fetchCurrentCandidates(createdElection.election_id);
+      setTimeout(() => setCandidateMessage(''), 4000); // Clear message after 4s
     } catch (err) {
-      setError('Failed to add candidate.');
+      setCandidateError(err.response?.data?.detail || 'Failed to add candidate.');
+      setTimeout(() => setCandidateError(''), 4000);
     }
   };
 
   // Publish an election
   const handlePublishElection = async (electionId) => {
-    setMessage(''); setError('');
+    setMessage(''); setError(''); setCandidateMessage(''); setCandidateError('');
     try {
       await apiClient.put(`/elections/${electionId}/publish`);
       setMessage('Election is now LIVE and visible to voters!');
@@ -203,12 +237,15 @@ const AdminDashboard = () => {
   // Delete Candidate
   const handleDeleteCandidate = async (candidateId) => {
     if (!createdElection) return;
+    setCandidateMessage(''); setCandidateError('');
     try {
       await apiClient.delete(`/candidates/${candidateId}`);
-      setMessage('Candidate removed successfully.');
+      setCandidateMessage('Candidate removed successfully.');
       fetchCurrentCandidates(createdElection.election_id);
+      setTimeout(() => setCandidateMessage(''), 4000);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to remove candidate.');
+      setCandidateError(err.response?.data?.detail || 'Failed to remove candidate.');
+      setTimeout(() => setCandidateError(''), 4000);
     }
   };
 
@@ -909,6 +946,9 @@ const AdminDashboard = () => {
               </h3>
               
               <div className="ml-11">
+                {candidateMessage && <div className="mb-6 p-4 bg-green-100 dark:bg-green-900/50 border border-green-400 dark:border-green-500 rounded-xl text-green-700 dark:text-green-200 font-medium text-sm flex items-center gap-2"><Check size={18}/> {candidateMessage}</div>}
+                {candidateError && <div className="mb-6 p-4 bg-red-100 dark:bg-red-900/50 border border-red-400 dark:border-red-500 rounded-xl text-red-700 dark:text-red-200 font-medium text-sm flex items-center gap-2"><AlertCircle size={18}/> {candidateError}</div>}
+                
                 <form onSubmit={handleAddCandidate} className="mb-8">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                     <div>
@@ -937,7 +977,7 @@ const AdminDashboard = () => {
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
                     <div className="w-full sm:w-1/2">
                       <label className="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">Profile Photo <span className="text-xs font-normal">(Optional)</span></label>
-                      <input type="file" accept="image/*" onChange={handleCandidatePhoto} disabled={!createdElection} className="w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 dark:file:bg-gray-700 dark:file:text-gray-300 disabled:opacity-50 transition-all cursor-pointer" />
+                      <input id="candidatePhotoInput" type="file" accept="image/*" onChange={handleCandidatePhoto} disabled={!createdElection} className="w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 dark:file:bg-gray-700 dark:file:text-gray-300 disabled:opacity-50 transition-all cursor-pointer" />
                     </div>
                     <button type="submit" disabled={!createdElection || !candidateName.trim()} className="w-full sm:w-auto bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white px-8 py-3 rounded-xl font-bold shadow-md transition-all active:scale-95 flex justify-center items-center gap-2">
                       <Save size={20} /> Add Candidate
