@@ -691,7 +691,7 @@ const AdminDashboard = () => {
         <div className="p-6 pb-2">
           <div className="flex items-center gap-4 bg-gray-100 dark:bg-gray-700 p-4 rounded-2xl shadow-inner border border-gray-200 dark:border-gray-600">
             {avatar ? (
-              <img src={avatar} alt="Avatar" className="w-10 h-10 rounded-full object-cover shadow-md border-2 border-white dark:border-gray-800 flex-shrink-0" />
+              <img src={avatar} alt="Avatar" onError={() => setAvatar(null)} className="w-10 h-10 rounded-full object-cover shadow-md border-2 border-white dark:border-gray-800 flex-shrink-0" />
             ) : (
               <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-2.5 rounded-full text-white shadow-md flex-shrink-0">
                 <User size={24} />
@@ -1177,7 +1177,7 @@ const AdminDashboard = () => {
               <div className="flex flex-col items-center gap-4 w-full sm:w-auto">
                 <div className="w-32 h-32 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center border-4 border-white dark:border-gray-800 shadow-lg overflow-hidden">
                 {avatar ? (
-                  <img src={avatar} alt="Profile Avatar" className="w-full h-full object-cover" />
+                  <img src={avatar} alt="Profile Avatar" onError={() => setAvatar(null)} className="w-full h-full object-cover" />
                 ) : (
                   <User size={48} className="text-gray-400 dark:text-gray-500" />
                 )}

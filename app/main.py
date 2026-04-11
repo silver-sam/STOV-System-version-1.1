@@ -393,25 +393,15 @@ def add_candidate(candidate: CandidateCreate, request: Request, db: Session = De
     if existing_candidate:
         raise HTTPException(status_code=400, detail=f"Candidate '{candidate.name}' already exists in this election.")
 
-    photo_url = candidate.photo
-    if photo_url and photo_url.startswith("data:image"):
-        try:
-            header, encoded = photo_url.split(",", 1)
-            ext = utils.validate_image_extension(header)
-            filename = f"cand_{uuid.uuid4().hex[:8]}.{ext}"
-            filepath = os.path.join("uploads", "candidates", filename)
-            with open(filepath, "wb") as f:
-                f.write(base64.b64decode(encoded))
-            photo_url = f"{request.base_url}uploads/candidates/{filename}"
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Invalid photo format: {str(e)}")
+    # Removed file saving logic. The frontend already resizes candidates to <800px.
+    # We will just store the base64 string directly to prevent ephemeral storage 404s.
 
     # 3. Add the candidate
     new_candidate = models.Candidate(
         election_id=candidate.election_id,
         name=candidate.name,
         party=candidate.party,
-        photo=photo_url
+        photo=candidate.photo
     )
     db.add(new_candidate)
     db.commit()
@@ -1204,29 +1194,8 @@ def update_avatar(req: AvatarUpdate, request: Request, db: Session = Depends(get
     if not voter:
         raise HTTPException(status_code=404, detail="User not found")
     
-    avatar_url = req.avatar
-    if avatar_url and avatar_url.startswith("data:image"):
-        old_avatar = voter.avatar
-        if old_avatar and "/uploads/avatars/" in old_avatar:
-            try:
-                old_filename = old_avatar.split("/")[-1]
-                old_filepath = os.path.join("uploads", "avatars", old_filename)
-                if os.path.exists(old_filepath):
-                    os.remove(old_filepath)
-            except:
-                pass
-                
-        try:
-            header, encoded = avatar_url.split(",", 1)
-            ext = utils.validate_image_extension(header)
-            filename = f"avatar_{uuid.uuid4().hex[:8]}.{ext}"
-            filepath = os.path.join("uploads", "avatars", filename)
-            with open(filepath, "wb") as f:
-                f.write(base64.b64decode(encoded))
-            avatar_url = f"{request.base_url}uploads/avatars/{filename}"
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Invalid avatar format: {str(e)}")
-            
-    voter.avatar = avatar_url
+    # Store the base64 string directly in the database to prevent broken links
+    # when the server restarts or scales on cloud hosts like Railway.
+    voter.avatar = req.avatar
     db.commit()
     return {"message": "Avatar saved to database successfully."}
