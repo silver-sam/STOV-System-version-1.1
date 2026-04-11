@@ -1,21 +1,25 @@
 import os
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 
-# This URL matches the credentials in your docker-compose.yml
-# "db" is the hostname of the postgres container
-SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://stov_admin:securepassword123@db:5432/stov_database")
+# 1. Look for the Railway variable first. If it's missing, fall back to the local Docker "db" URL.
+SQLALCHEMY_DATABASE_URL = os.getenv(
+    "DATABASE_URL", 
+    "postgresql://stov_admin:securepassword123@db:5432/stov_database"
+)
 
-# Fix for Render's Postgres URLs (SQLAlchemy 1.4+ requires 'postgresql://')
+# 2. CRITICAL FIX FOR RAILWAY:
+# Railway generates URLs starting with "postgres://", but modern SQLAlchemy 
+# strictly requires them to start with "postgresql://". This fixes that mismatch.
 if SQLALCHEMY_DATABASE_URL.startswith("postgres://"):
     SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-engine = create_engine(SQLALCHEMY_DATABASE_URL, pool_pre_ping=True)
+engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
-# Dependency to get the DB session for our routes
 def get_db():
     db = SessionLocal()
     try:
