@@ -33,7 +33,8 @@ const Register = () => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [faceDetected, setFaceDetected] = useState(false);
   const [hasBlinked, setHasBlinked] = useState(false);
-  const [faceFeedback, setFaceFeedback] = useState('Position your face inside the dashed circle.');
+  const [capturedFace, setCapturedFace] = useState(null);
+  const [faceFeedback, setFaceFeedback] = useState('Look directly at your camera.');
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const autoDetectRef = useRef(false);
@@ -45,6 +46,7 @@ const Register = () => {
     setError('');
     hasAutoSubmittedRef.current = false;
     setHasBlinked(false);
+    setCapturedFace(null);
     setCameraActive(true);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -86,7 +88,7 @@ const Register = () => {
   useEffect(() => {
     let timeoutId;
     const pollFace = async () => {
-      if (!videoRef.current || !cameraActive || autoDetectRef.current || isRegistering) return;
+      if (!videoRef.current || !cameraActive || autoDetectRef.current || isRegistering || capturedFace) return;
       if (videoRef.current.readyState !== 4) {
         timeoutId = setTimeout(pollFace, 500);
         return;
@@ -124,7 +126,7 @@ const Register = () => {
         if (!hasBlinked) {
           if (res.data.blinking) {
             setHasBlinked(true);
-            setFaceFeedback('Liveness verified! Open your eyes to register...');
+            setFaceFeedback('Liveness verified! Open your eyes to capture...');
           } else {
             setFaceFeedback('Face detected! Please BLINK to verify liveness.');
           }
@@ -133,22 +135,28 @@ const Register = () => {
 
         // Liveness is verified (hasBlinked is true), now wait for eyes to be open
         if (res.data.blinking) {
-          setFaceFeedback('Liveness verified! Open your eyes to register...');
+          setFaceFeedback('Liveness verified! Open your eyes to capture...');
           return;
         }
 
-        // Eyes are open, form is valid, and we haven't submitted yet
+        // Eyes are open! Lock it in.
+        setCapturedFace(frame);
+        if (videoRef.current) {
+            videoRef.current.pause();
+        }
+
+        // Form is valid, and we haven't submitted yet
         if (isFormValid && !hasAutoSubmittedRef.current) {
-          setFaceFeedback('Liveness confirmed! Auto-registering...');
+          setFaceFeedback('Face captured! Auto-registering...');
           hasAutoSubmittedRef.current = true;
           if (submitBtnRef.current) {
             submitBtnRef.current.click();
           }
           return; // Stop polling after submission attempt
         } else if (!isFormValid) {
-            setFaceFeedback('Liveness verified! Please complete all fields.');
+            setFaceFeedback('Face captured! Please complete all fields to register.');
         } else if (hasAutoSubmittedRef.current) {
-            setFaceFeedback('Liveness verified! Click Register to try again if auto-submit fails.');
+            setFaceFeedback('Face captured! Click Register to try again if auto-submit fails.');
         }
 
       } catch (err) {
@@ -158,16 +166,16 @@ const Register = () => {
         setFaceFeedback(detail);
       } finally {
         autoDetectRef.current = false;
-        if (cameraActive && !isRegistering && !hasAutoSubmittedRef.current) {
+        if (cameraActive && !isRegistering && !hasAutoSubmittedRef.current && !capturedFace) {
             timeoutId = setTimeout(pollFace, 300);
         }
       }
     };
 
-    if (cameraActive) { autoDetectRef.current = false; timeoutId = setTimeout(pollFace, 300); } 
-    else { setFaceDetected(false); setFaceFeedback('Position your face inside the dashed circle.'); }
+    if (cameraActive && !capturedFace) { autoDetectRef.current = false; timeoutId = setTimeout(pollFace, 300); } 
+    else if (!cameraActive) { setFaceDetected(false); setHasBlinked(false); setCapturedFace(null); setFaceFeedback('Look directly at your camera.'); }
     return () => clearTimeout(timeoutId);
-  }, [cameraActive, isRegistering, hasBlinked, isFormValid]);
+  }, [cameraActive, isRegistering, hasBlinked, isFormValid, capturedFace]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -186,25 +194,11 @@ const Register = () => {
     setIsRegistering(true);
     setError('');
     
-    let faceImageBase64 = null;
-    if (videoRef.current && cameraActive) {
-        const video = videoRef.current;
-        const canvas = canvasRef.current;
-        let targetWidth = video.videoWidth;
-        let targetHeight = video.videoHeight;
-        const maxDim = 640;
-        
-        if (Math.max(targetWidth, targetHeight) > maxDim) {
-          const scale = maxDim / Math.max(targetWidth, targetHeight);
-          targetWidth = Math.round(targetWidth * scale);
-          targetHeight = Math.round(targetHeight * scale);
-        }
-        
-        canvas.width = targetWidth;
-        canvas.height = targetHeight;
-        const context = canvas.getContext('2d');
-        context.drawImage(video, 0, 0, targetWidth, targetHeight);
-        faceImageBase64 = canvas.toDataURL('image/jpeg', 0.8);
+    let faceImageBase64 = capturedFace;
+    if (!faceImageBase64) {
+      setError('Please wait for your face to be securely captured.');
+      setIsRegistering(false);
+      return;
     }
 
     try {
@@ -241,6 +235,11 @@ const Register = () => {
         setError(err.message || 'Registration failed. Network error.');
       }
       hasAutoSubmittedRef.current = false; // Allow another auto-submit attempt on failure
+      setCapturedFace(null);
+      setHasBlinked(false);
+      if (videoRef.current) {
+          videoRef.current.play().catch(() => {});
+      }
     } finally {
       setIsRegistering(false);
     }
@@ -391,7 +390,7 @@ const Register = () => {
               <div className="flex flex-col items-center w-full bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-600 relative">
                 <p className={`mb-4 text-sm font-medium text-center transition-colors duration-300 ${faceDetected ? 'text-green-600 dark:text-green-400 font-bold' : 'text-gray-600 dark:text-gray-400'}`}>{faceFeedback}</p>
                 <div className={`relative w-full max-w-sm mx-auto overflow-hidden rounded-lg border-2 bg-black aspect-video transition-all duration-500 ${faceDetected ? 'border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.4)]' : 'border-gray-300 dark:border-gray-600 shadow-lg'}`}>
-                  <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover transform scale-x-[-1]" />
+                  <video ref={videoRef} autoPlay playsInline muted disablePictureInPicture controls={false} controlsList="nodownload nofullscreen noremoteplayback" className="w-full h-full object-cover transform scale-x-[-1] pointer-events-none" />
                   <div className={`absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 h-3/4 aspect-square border-4 rounded-full pointer-events-none z-10 transition-all duration-500 ${faceDetected ? 'border-solid border-green-500/80 scale-105' : 'border-dashed border-blue-500/70 animate-pulse'}`}></div>
                 </div>
                 <canvas ref={canvasRef} className="hidden" />
@@ -409,7 +408,7 @@ const Register = () => {
 
             <button
               type="submit"
-              disabled={isRegistering || !cameraActive || !faceDetected || !hasBlinked || !isFormValid}
+              disabled={isRegistering || !cameraActive || !faceDetected || !hasBlinked || !isFormValid || !capturedFace}
               className="w-full mt-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-xl shadow-lg transition-all duration-200 active:scale-95 flex items-center justify-center gap-2 text-sm sm:text-base"
             >
               {isRegistering ? 'Registering & Processing Face...' : (!faceDetected) ? 'Looking for face...' : (!hasBlinked) ? 'Waiting for blink...' : <><UserPlus size={20} className="flex-shrink-0" /> <span>Register Account</span></>}

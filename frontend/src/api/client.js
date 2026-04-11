@@ -5,6 +5,7 @@ const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api', // Uses env var in production, /api in dev
   headers: {
     'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true', // Bypasses the free ngrok warning page
   },
 });
 

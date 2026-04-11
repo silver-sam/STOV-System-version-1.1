@@ -33,14 +33,6 @@ from . import blockchain
 from . import auth
 from . import utils
 
-# Import the new face verification router
-try:
-    from . import face_verification
-except ImportError:
-    import sys, os
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    import app.face_verification as face_verification
-
 # --- FASTAPI-MAIL CONFIG ---
 # It's highly recommended to use environment variables for this in production.
 # For Gmail, you may need to generate an "App Password".
@@ -75,9 +67,6 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 os.makedirs("uploads/avatars", exist_ok=True)
 os.makedirs("uploads/candidates", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
-
-# Register the face verification endpoints
-app.include_router(face_verification.router)
 
 # Enable CORS so the React Frontend can communicate with this API
 app.add_middleware(
@@ -167,7 +156,7 @@ class MFAResetRequest(BaseModel):
 
 # --- API ROUTES ---
 @app.post("/detect-face/")
-@limiter.limit("60/minute")
+@limiter.limit("1000/minute")
 def detect_face_presence(payload: FaceDetectRequest, request: Request):
     """Fast endpoint used purely for real-time UI feedback (bounding box check only)."""
     try:
@@ -215,6 +204,44 @@ def detect_face_presence(payload: FaceDetectRequest, request: Request):
         # This outer catch is now for more severe errors like image decoding.
         # FOR DEBUGGING: Return the actual error to the frontend.
         return {"detected": False, "blinking": False, "detail": f"Server Error: {str(e)}"}
+
+@app.post("/verify-face/")
+@limiter.limit("10/minute")
+def verify_face_match(payload: FaceDetectRequest, request: Request, db: Session = Depends(get_db), current_voter: str = Depends(auth.get_current_user)):
+    """Strictly compares the live webcam face against the logged-in user's database record."""
+    
+    # 1. Fetch the EXACT user who is currently logged in (from JWT token)
+    db_voter = db.query(models.Voter).filter(models.Voter.voter_id == current_voter).first()
+    if not db_voter or not db_voter.face_encoding:
+        raise HTTPException(status_code=400, detail="User not found or no face registered.")
+        
+    # 2. Safety Check: Ensure Mocking isn't accidentally enabled
+    if os.getenv("MOCK_FACE_RECOGNITION", "false").lower() in ('true', '1', 't'):
+        return {"verified": True, "message": "Mock verification passed."}
+        
+    try:
+        img = utils.decode_base64_image(payload.image)
+        if img is None:
+            raise HTTPException(status_code=400, detail="Invalid image format.")
+            
+        rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        face_encodings = face_recognition.face_encodings(rgb_img)
+        
+        if len(face_encodings) != 1:
+            raise HTTPException(status_code=400, detail="Please ensure exactly one face is in the frame.")
+            
+        captured_encoding = face_encodings[0]
+        reference_encoding = np.array(json.loads(db_voter.face_encoding))
+        
+        # 3. MATHEMATICAL COMPARISON: Does the webcam match the logged-in user?
+        distances = face_recognition.face_distance([reference_encoding], captured_encoding)
+        if distances[0] > 0.48: # Strict threshold (closer to 0 is a better match)
+            raise HTTPException(status_code=403, detail="Access Denied: Face does not match the registered owner of this account.")
+            
+        return {"verified": True, "message": "Identity verified successfully."}
+    except Exception as e:
+        if isinstance(e, HTTPException): raise e
+        raise HTTPException(status_code=500, detail=f"Server Error: {str(e)}")
 
 @app.post("/voters/")
 @limiter.limit("5/hour")

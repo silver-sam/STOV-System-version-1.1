@@ -21,6 +21,7 @@ const ForgotPassword = () => {
   const [isVerifying, setIsVerifying] = useState(false);
   const [faceDetected, setFaceDetected] = useState(false);
   const [hasBlinked, setHasBlinked] = useState(false);
+  const [capturedFace, setCapturedFace] = useState(null);
   const [faceFeedback, setFaceFeedback] = useState('Enable camera to verify your identity.');
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -49,6 +50,7 @@ const ForgotPassword = () => {
   const startCamera = async () => {
     setError('');
     setHasBlinked(false);
+    setCapturedFace(null);
     setCameraActive(true);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -76,7 +78,7 @@ const ForgotPassword = () => {
   useEffect(() => {
     let timeoutId;
     const pollFace = async () => {
-        if (!videoRef.current || !cameraActive || autoDetectRef.current || isVerifying) return;
+        if (!videoRef.current || !cameraActive || autoDetectRef.current || isVerifying || capturedFace) return;
         if (videoRef.current.readyState !== 4) {
             timeoutId = setTimeout(pollFace, 500);
             return;
@@ -152,28 +154,8 @@ const ForgotPassword = () => {
     setError('');
     setIsVerifying(true);
 
-    let faceImageBase64 = null;
-    if (videoRef.current && cameraActive) {
-        const video = videoRef.current;
-        const canvas = canvasRef.current;
-        let targetWidth = video.videoWidth;
-        let targetHeight = video.videoHeight;
-        const maxDim = 640;
-        
-        if (Math.max(targetWidth, targetHeight) > maxDim) {
-          const scale = maxDim / Math.max(targetWidth, targetHeight);
-          targetWidth = Math.round(targetWidth * scale);
-          targetHeight = Math.round(targetHeight * scale);
-        }
-        
-        canvas.width = targetWidth;
-        canvas.height = targetHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0, targetWidth, targetHeight);
-        faceImageBase64 = canvas.toDataURL('image/jpeg', 0.8);
-    }
-
-    if (!faceImageBase64) {
-        setError('Could not capture face image for verification.');
+    if (!capturedFace) {
+        setError('Please wait for your face to be securely captured before verifying.');
         setIsVerifying(false);
         setStatus('');
         return;
@@ -183,7 +165,7 @@ const ForgotPassword = () => {
       const response = await apiClient.post('/forgot-password/', { 
           voter_id: voterId, 
           email: email,
-          face_image: faceImageBase64
+          face_image: capturedFace
       });
       
       // The token is now emailed. We just show the success message.
@@ -193,6 +175,13 @@ const ForgotPassword = () => {
     } catch (err) {
       setStatus('');
       setError(err.response?.data?.detail || 'Identity verification failed. Please try again.');
+      
+      // If the identity verification failed, reset the camera so they can try again
+      setCapturedFace(null);
+      setHasBlinked(false);
+      if (videoRef.current) {
+          videoRef.current.play().catch(() => {});
+      }
     } finally {
       setIsVerifying(false);
     }
@@ -291,7 +280,7 @@ const ForgotPassword = () => {
                 <div className="flex flex-col items-center w-full bg-gray-50 dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-600 relative">
                   <p className={`mb-4 text-sm font-medium text-center transition-colors duration-300 ${faceDetected ? 'text-green-600 dark:text-green-400 font-bold' : 'text-gray-600 dark:text-gray-400'}`}>{faceFeedback}</p>
                   <div className={`relative w-full max-w-sm mx-auto overflow-hidden rounded-lg border-2 bg-black aspect-video transition-all duration-500 ${faceDetected ? 'border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.4)]' : 'border-gray-300 dark:border-gray-600 shadow-lg'}`}>
-                    <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover transform scale-x-[-1]" />
+                    <video ref={videoRef} autoPlay playsInline muted disablePictureInPicture controls={false} controlsList="nodownload nofullscreen noremoteplayback" className="w-full h-full object-cover transform scale-x-[-1] pointer-events-none" />
                     <div className={`absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 h-3/4 aspect-square border-4 rounded-full pointer-events-none z-10 transition-all duration-500 ${faceDetected ? 'border-solid border-green-500/80 scale-105' : 'border-dashed border-blue-500/70 animate-pulse'}`}></div>
                   </div>
                   <canvas ref={canvasRef} className="hidden" />
@@ -301,7 +290,7 @@ const ForgotPassword = () => {
 
             <button
               type="submit"
-              disabled={isVerifying || !cameraActive || !faceDetected || !hasBlinked || !isForm1Valid}
+              disabled={isVerifying || !cameraActive || !faceDetected || !hasBlinked || !isForm1Valid || !capturedFace}
               className="w-full mt-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-xl shadow-lg transition-all duration-200 active:scale-95 flex items-center justify-center gap-2 text-sm sm:text-base"
             >
               {isVerifying ? 'Verifying...' : 'Verify Identity'}

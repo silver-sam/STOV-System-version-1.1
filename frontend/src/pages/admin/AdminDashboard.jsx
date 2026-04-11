@@ -618,8 +618,12 @@ const AdminDashboard = () => {
       
       {/* Mobile Top Bar */}
       <div className="md:hidden bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 flex justify-between items-center sticky top-0 z-30 shadow-sm">
-        <h1 className="text-xl font-black text-blue-600 dark:text-blue-500 flex items-center gap-2 tracking-wide">
-          <ShieldAlert size={24} /> AegisElect Admin
+        <h1 
+          onClick={() => { setActiveTab('analytics'); setIsMobileMenuOpen(false); }}
+          className="text-xl font-black text-blue-600 dark:text-blue-500 flex items-center gap-2 tracking-wide cursor-pointer hover:opacity-80 transition-opacity"
+        >
+          <img src="/aegis_logo.png" alt="AegisElect Logo" className="w-10 h-10 object-contain rounded-full shadow-sm bg-white p-0.5" />
+          AegisElect Admin
         </h1>
         <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
           <Menu size={24} />
@@ -634,8 +638,12 @@ const AdminDashboard = () => {
       {/* Sidebar */}
       <aside className={`fixed inset-y-0 left-0 w-72 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col shadow-2xl md:shadow-lg z-50 md:z-20 md:sticky md:top-0 md:h-screen transform transition-transform duration-300 md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-6 pb-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-          <h1 className="text-2xl font-black text-blue-600 dark:text-blue-500 flex items-center gap-2 tracking-wide">
-            <ShieldAlert size={24} className="flex-shrink-0" /> <span className="truncate">AegisElect Admin</span>
+          <h1 
+            onClick={() => { setActiveTab('analytics'); }}
+            className="text-2xl font-black text-blue-600 dark:text-blue-500 flex items-center gap-2 tracking-wide cursor-pointer hover:opacity-80 transition-opacity"
+          >
+            <img src="/aegis_logo.png" alt="AegisElect Logo" className="w-10 h-10 object-contain rounded-full flex-shrink-0 shadow-sm bg-white p-0.5" /> 
+            <span className="truncate">AegisElect Admin</span>
           </h1>
           <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
             <X size={20} />

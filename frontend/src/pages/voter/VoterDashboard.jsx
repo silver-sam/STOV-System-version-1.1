@@ -58,7 +58,7 @@ const VoterDashboard = () => {
   const [cameraActive, setCameraActive] = useState(false);
   const [verifyingFace, setVerifyingFace] = useState(false);
   const [faceDetected, setFaceDetected] = useState(false);
-  const [faceFeedback, setFaceFeedback] = useState('Position your face inside the dashed circle.');
+  const [faceFeedback, setFaceFeedback] = useState('Look directly at your camera.');
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const autoVerifyRef = useRef(false);
@@ -252,7 +252,7 @@ const VoterDashboard = () => {
   // 3. Camera Controls
   const startCamera = async () => {
     setError('');
-    setFaceFeedback('Position your face inside the dashed circle.');
+    setFaceFeedback('Look directly at your camera.');
     hasBlinkedRef.current = false;
     setCameraActive(true);
     try {
@@ -631,8 +631,12 @@ const VoterDashboard = () => {
       
       {/* Mobile Top Bar */}
       <div className="md:hidden bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 flex justify-between items-center sticky top-0 z-30 shadow-sm">
-        <h1 className="text-xl font-black text-blue-600 dark:text-blue-500 flex items-center gap-2 tracking-wide">
-          <Vote size={24} /> AegisElect
+        <h1 
+          onClick={() => { setActiveTab('elections'); setSelectedElection(null); setReceipt(null); setIsMobileMenuOpen(false); }}
+          className="text-xl font-black text-blue-600 dark:text-blue-500 flex items-center gap-2 tracking-wide cursor-pointer hover:opacity-80 transition-opacity"
+        >
+          <img src="/aegis_logo.png" alt="AegisElect Logo" className="w-10 h-10 object-contain rounded-full shadow-sm bg-white p-0.5" />
+          AegisElect
         </h1>
         <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
           <Menu size={24} />
@@ -647,8 +651,12 @@ const VoterDashboard = () => {
       {/* Sidebar */}
       <aside className={`fixed inset-y-0 left-0 w-72 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col shadow-2xl md:shadow-lg z-50 md:z-20 md:sticky md:top-0 md:h-screen transform transition-transform duration-300 md:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-6 pb-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-          <h1 className="text-2xl font-black text-blue-600 dark:text-blue-500 flex items-center gap-2 tracking-wide">
-            <Vote size={24} className="flex-shrink-0" /> <span className="truncate">AegisElect</span>
+          <h1 
+            onClick={() => { setActiveTab('elections'); setSelectedElection(null); setReceipt(null); }}
+            className="text-2xl font-black text-blue-600 dark:text-blue-500 flex items-center gap-2 tracking-wide cursor-pointer hover:opacity-80 transition-opacity"
+          >
+            <img src="/aegis_logo.png" alt="AegisElect Logo" className="w-10 h-10 object-contain rounded-full flex-shrink-0 shadow-sm bg-white p-0.5" /> 
+            <span className="truncate">AegisElect</span>
           </h1>
           <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
             <X size={20} />
@@ -846,7 +854,7 @@ const VoterDashboard = () => {
                                 <p className={`text-sm font-medium transition-colors duration-300 ${faceDetected ? 'text-green-600 dark:text-green-400 font-bold' : 'text-gray-600 dark:text-gray-400'}`}>{faceFeedback}</p>
                               </div>
                               <div className={`relative w-full max-w-md mx-auto mb-6 overflow-hidden rounded-lg border-2 bg-black aspect-video transition-all duration-500 ${faceDetected ? 'border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.4)]' : 'border-gray-300 dark:border-gray-600 shadow-lg'}`}>
-                                <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover transform scale-x-[-1]" />
+                                <video ref={videoRef} autoPlay playsInline muted disablePictureInPicture controls={false} controlsList="nodownload nofullscreen noremoteplayback" className="w-full h-full object-cover transform scale-x-[-1] pointer-events-none" />
                                 <div className={`absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 h-3/4 aspect-square border-4 rounded-full pointer-events-none z-10 transition-all duration-500 ${faceDetected ? 'border-solid border-green-500/80 scale-105' : 'border-dashed border-blue-500/70 animate-pulse'}`}></div>
                               </div>
                               <canvas ref={canvasRef} className="hidden" />

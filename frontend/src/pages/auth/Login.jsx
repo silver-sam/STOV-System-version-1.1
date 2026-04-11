@@ -27,6 +27,7 @@ const Login = () => {
   const [supportIsVerifying, setSupportIsVerifying] = useState(false);
   const [supportFaceDetected, setSupportFaceDetected] = useState(false);
   const [supportHasBlinked, setSupportHasBlinked] = useState(false);
+  const [supportCapturedFace, setSupportCapturedFace] = useState(null);
   const [supportFaceFeedback, setSupportFaceFeedback] = useState('Enable camera to verify your identity.');
   const supportVideoRef = useRef(null);
   const supportCanvasRef = useRef(null);
@@ -109,6 +110,7 @@ const Login = () => {
   const startSupportCamera = async () => {
     setSupportError('');
     setSupportHasBlinked(false);
+    setSupportCapturedFace(null);
     setSupportCameraActive(true);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -138,6 +140,7 @@ const Login = () => {
         setSupportError('');
         setSupportFaceDetected(false);
         setSupportHasBlinked(false);
+        setSupportCapturedFace(null);
         setSupportFaceFeedback('Enable camera to verify your identity.');
     }
   }, [isSupportOpen]);
@@ -146,7 +149,7 @@ const Login = () => {
   useEffect(() => {
     let timeoutId;
     const pollFace = async () => {
-        if (!supportVideoRef.current || !supportCameraActive || supportAutoDetectRef.current || supportIsVerifying) return;
+        if (!supportVideoRef.current || !supportCameraActive || supportAutoDetectRef.current || supportIsVerifying || supportCapturedFace) return;
         if (supportVideoRef.current.readyState !== 4) {
             timeoutId = setTimeout(pollFace, 500);
             return;
@@ -183,10 +186,22 @@ const Login = () => {
             if (!supportHasBlinked) {
                 if (res.data.blinking) {
                     setSupportHasBlinked(true);
-                    setSupportFaceFeedback('Liveness verified! You can now submit your request.');
+                    setSupportFaceFeedback('Liveness verified! Open your eyes for capture...');
                 } else {
                     setSupportFaceFeedback('Face detected! Please BLINK to verify liveness.');
                 }
+                return;
+            }
+
+            if (res.data.blinking) {
+                setSupportFaceFeedback('Liveness verified! Open your eyes for capture...');
+                return;
+            }
+
+            setSupportCapturedFace(frame);
+            setSupportFaceFeedback('Face captured securely! You can now submit your request.');
+            if (supportVideoRef.current) {
+                supportVideoRef.current.pause();
             }
         } catch (err) {
             console.error("Support modal face detection poll failed:", err);
@@ -195,19 +210,19 @@ const Login = () => {
             setSupportFaceFeedback(detail);
         } finally {
             supportAutoDetectRef.current = false;
-            if (supportCameraActive && !supportIsVerifying && !supportHasBlinked) {
+            if (supportCameraActive && !supportIsVerifying && !supportHasBlinked && !supportCapturedFace) {
                 timeoutId = setTimeout(pollFace, 300);
             }
         }
     };
 
-    if (isSupportOpen && supportCameraActive) {
+    if (isSupportOpen && supportCameraActive && !supportCapturedFace) {
         supportAutoDetectRef.current = false;
         timeoutId = setTimeout(pollFace, 300);
     }
 
     return () => clearTimeout(timeoutId);
-  }, [isSupportOpen, supportCameraActive, supportIsVerifying, supportHasBlinked]);
+  }, [isSupportOpen, supportCameraActive, supportIsVerifying, supportHasBlinked, supportCapturedFace]);
 
   const handleSupportSubmit = async (e) => {
     e.preventDefault();
@@ -215,25 +230,7 @@ const Login = () => {
     setSupportError('');
     setSupportIsVerifying(true);
 
-    let faceImageBase64 = null;
-    if (supportVideoRef.current && supportCameraActive) {
-        const video = supportVideoRef.current;
-        const canvas = supportCanvasRef.current;
-        let targetWidth = video.videoWidth;
-        let targetHeight = video.videoHeight;
-        const maxDim = 640;
-        
-        if (Math.max(targetWidth, targetHeight) > maxDim) {
-          const scale = maxDim / Math.max(targetWidth, targetHeight);
-          targetWidth = Math.round(targetWidth * scale);
-          targetHeight = Math.round(targetHeight * scale);
-        }
-        
-        canvas.width = targetWidth;
-        canvas.height = targetHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0, targetWidth, targetHeight);
-        faceImageBase64 = canvas.toDataURL('image/jpeg', 0.8);
-    }
+    let faceImageBase64 = supportCapturedFace;
 
     if (!faceImageBase64) {
         setSupportError('Could not capture face image for verification.');
@@ -256,6 +253,11 @@ const Login = () => {
     } catch (err) {
       setSupportStatus('');
       setSupportError(err.response?.data?.detail || 'Failed to submit ticket. Please try again.');
+      setSupportCapturedFace(null);
+      setSupportHasBlinked(false);
+      if (supportVideoRef.current) {
+          supportVideoRef.current.play().catch(() => {});
+      }
     } finally {
       setSupportIsVerifying(false);
     }
@@ -395,7 +397,7 @@ const Login = () => {
                     <div className="flex flex-col items-center w-full bg-gray-50 dark:bg-gray-900 p-4 rounded-xl border border-gray-200 dark:border-gray-600 relative">
                       <p className={`mb-4 text-sm font-medium text-center transition-colors duration-300 ${supportFaceDetected ? 'text-green-600 dark:text-green-400 font-bold' : 'text-gray-600 dark:text-gray-400'}`}>{supportFaceFeedback}</p>
                       <div className={`relative w-full max-w-sm mx-auto overflow-hidden rounded-lg border-2 bg-black aspect-video transition-all duration-500 ${supportFaceDetected ? 'border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.4)]' : 'border-gray-300 dark:border-gray-600 shadow-lg'}`}>
-                        <video ref={supportVideoRef} autoPlay playsInline muted className="w-full h-full object-cover transform scale-x-[-1]" />
+                        <video ref={supportVideoRef} autoPlay playsInline muted disablePictureInPicture controls={false} controlsList="nodownload nofullscreen noremoteplayback" className="w-full h-full object-cover transform scale-x-[-1] pointer-events-none" />
                         <div className={`absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 h-3/4 aspect-square border-4 rounded-full pointer-events-none z-10 transition-all duration-500 ${supportFaceDetected ? 'border-solid border-green-500/80 scale-105' : 'border-dashed border-blue-500/70 animate-pulse'}`}></div>
                       </div>
                       <canvas ref={supportCanvasRef} className="hidden" />
@@ -405,7 +407,7 @@ const Login = () => {
 
                 <button 
                   type="submit" 
-                  disabled={supportIsVerifying || !supportCameraActive || !supportFaceDetected || !supportHasBlinked}
+                  disabled={supportIsVerifying || !supportCameraActive || !supportFaceDetected || !supportHasBlinked || !supportCapturedFace}
                   className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
                 >
                   {supportIsVerifying ? 'Processing...' : 'Verify Face & Submit Request'}
