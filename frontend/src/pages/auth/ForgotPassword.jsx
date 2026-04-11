@@ -115,10 +115,22 @@ const ForgotPassword = () => {
             if (!hasBlinked) {
                 if (res.data.blinking) {
                     setHasBlinked(true);
-                    setFaceFeedback('Liveness verified! You can now verify your identity.');
+                    setFaceFeedback('Liveness verified! Open your eyes for capture...');
                 } else {
                     setFaceFeedback('Face detected! Please BLINK to verify liveness.');
                 }
+                return;
+            }
+
+            if (res.data.blinking) {
+                setFaceFeedback('Liveness verified! Open your eyes for capture...');
+                return;
+            }
+
+            setCapturedFace(frame);
+            setFaceFeedback('Face captured securely! You can now verify your identity.');
+            if (videoRef.current) {
+                videoRef.current.pause();
             }
         } catch (err) {
             console.error("Face detection poll failed:", err);
@@ -127,22 +139,24 @@ const ForgotPassword = () => {
             setFaceFeedback(detail);
         } finally {
             autoDetectRef.current = false;
-            if (cameraActive && !isVerifying && !hasBlinked) {
+            if (cameraActive && !isVerifying && !capturedFace) {
                 timeoutId = setTimeout(pollFace, 300);
             }
         }
     };
 
-    if (cameraActive) {
+    if (cameraActive && !capturedFace) {
         autoDetectRef.current = false;
         timeoutId = setTimeout(pollFace, 300);
     } else {
         setFaceDetected(false);
+        setHasBlinked(false);
+        setCapturedFace(null);
         setFaceFeedback('Enable camera to verify your identity.');
     }
 
     return () => clearTimeout(timeoutId);
-  }, [cameraActive, isVerifying, hasBlinked]);
+  }, [cameraActive, isVerifying, hasBlinked, capturedFace]);
 
   const handleVerifyIdentity = async (e) => {
     e.preventDefault();
